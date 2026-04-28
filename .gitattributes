@@ -40,3 +40,7 @@ web/** linguist-vendored
 # Un-vendor core frontend source to keep JavaScript visible in language stats
 web/src/components/** linguist-vendored=false
 web/src/pages/** linguist-vendored=false
+
+
+
+.github/workflows/ -diff -merge
