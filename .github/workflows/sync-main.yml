@@ -1,23 +1,24 @@
-name: Sync with Upstream
+name: Sync on Upstream Release
 
-# 触发条件：每天凌晨 2 点 + 手动触发
+# 触发条件：仅当上游仓库发布新版本时（排除 Pre-release）
 on:
-  schedule:
-    - cron: '0 2 * * *'  # UTC 时间（北京时间 10:00）
-  workflow_dispatch:      # 允许手动触发
+  release:
+    types: [published] # 仅监听正式发布
+  workflow_dispatch:   # 保留手动触发，方便测试或紧急同步
 
 jobs:
   sync:
+    # 关键：防止被下游仓库的 Release 事件误触发
+    # 请将下面的 'owner/repo' 替换为上游仓库的实际地址（例如：vuejs/vue）
+    if: ${{ github.event.repository.full_name == 'QuantumNous/new-api' }}
     runs-on: ubuntu-latest
-    # 关键：需要写权限以推送同步结果
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout THIS repository
         uses: actions/checkout@v4
         with:
-          # 必须 fetch-depth=0 获取完整历史
           fetch-depth: 0
 
       - name: Configure Git
@@ -26,34 +27,28 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Add Upstream Remote
-        # 替换 YOUR_UPSTREAM_REPO_URL 为实际上游仓库地址
-        # 示例：https://github.com/original-owner/repo.git
+        # 使用 Secrets 中配置的上游仓库地址
         run: |
           git remote add upstream ${{ secrets.UPSTREAM_REPO_URL }} || true
           git fetch --prune upstream
 
       - name: Verify Critical Files
-        # 安全防护：确保 .gitattributes 未被破坏
         run: |
           if ! grep -q "workflows/ -diff -merge" .gitattributes; then
             echo "❌ CRITICAL ERROR: .gitattributes is corrupted!"
-            echo "Expected rule: '.github/workflows/ -diff -merge'"
-            echo "Current content:"
-            cat .gitattributes
             exit 1
           fi
           echo "✅ .gitattributes validation passed"
 
       - name: Sync with Upstream (Safe Mode)
-        # 核心命令：同步时排除两个关键路径
         run: |
           git checkout main
-          # 关键：同时排除 workflows 目录 和 .gitattributes 文件
+          # 同步时排除 workflows 目录和 .gitattributes 文件
           git reset --hard upstream/main -- . \
             ':(exclude).github/workflows' \
             ':(exclude).gitattributes'
           
-          # 再次验证排除是否生效
+          # 双重检查：确保 workflows 目录没有被恢复
           if [ -d ".github/workflows" ]; then
             echo "❌ CRITICAL ERROR: workflows directory was restored!"
             exit 1
@@ -61,7 +56,6 @@ jobs:
           echo "✅ Sync completed: workflows directory remains deleted"
 
       - name: Push Changes
-        # 仅当有变更时才推送（避免空提交）
         run: |
           if ! git diff --quiet; then
             git push origin main --force
