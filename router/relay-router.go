@@ -11,10 +11,15 @@ import (
 )
 
 func SetRelayRouter(router *gin.Engine) {
+	// 设置模型拦截器为第一个全局中间件
+	router.Use(relay.ModelInterceptor())
+	
+	// 其他全局中间件
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))

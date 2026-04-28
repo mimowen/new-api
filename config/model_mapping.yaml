@@ -1,0 +1,58 @@
+enabled: true
+mappings:
+  code:
+    patterns:
+      - "code"
+      - "coder"
+      - "programming"
+      - "dev"
+    models:
+      - model: "qwen3.6-plus-free"
+        weight: 70
+      - model: "kimi-k2.6-free"
+        weight: 30
+  vision:
+    patterns:
+      - "vision"
+      - "vl"
+      - "image"
+      - "visual"
+      - "gpt-4-vision"
+    models:
+      - model: "qwen3.6-plus-free"
+        weight: 50
+      - model: "kimi-k2.6-free"
+        weight: 50
+  agent:
+    patterns:
+      - "agent"
+      - "function"
+      - "tool"
+      - "assistant"
+    models:
+      - model: "qwen3.6-plus-free"
+        weight: 60
+      - model: "kimi-k2.6-free"
+        weight: 40
+  default:
+    patterns: []
+    models:
+      - model: "qwen3.6-plus-free"
+        weight: 50
+      - model: "kimi-k2.6-free"
+        weight: 50
+  gpt:
+    patterns:
+      - "gpt"
+      - "gpt-3"
+      - "gpt-4"
+    models:
+      - model: "qwen3.6-plus-free"
+        weight: 50
+      - model: "kimi-k2.6-free"
+        weight: 50
+intercept_endpoints:
+  - /v1/chat/completions
+  - /v1/completions
+  - /v1/embeddings
+  - /v1/vision/completions

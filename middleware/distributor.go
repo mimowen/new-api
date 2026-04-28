@@ -171,6 +171,15 @@ func Distribute() func(c *gin.Context) {
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	var modelRequest ModelRequest
+	
+	// 检查是否有模型拦截器设置的映射模型
+	if mappedModel, exists := c.Get("mapped_model"); exists {
+		if modelStr, ok := mappedModel.(string); ok {
+			modelRequest.Model = modelStr
+			return &modelRequest, nil
+		}
+	}
+	
 	err := common.UnmarshalBodyReusable(c, &modelRequest)
 	if err != nil {
 		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
