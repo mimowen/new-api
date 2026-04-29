@@ -1,9 +1,9 @@
-name: Build Multi-Arch Docker Image
+name: Docker Build and Push
 
 on:
   push:
-    branches:
-      - model-interceptor-feature  # 仅跟踪当前开发分支
+    branches: [ model-interceptor-feature ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,31 +11,49 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
+      # ↓↓↓ 新增：获取上游 VERSION 文件内容 ↓↓↓
+      - name: Fetch upstream VERSION
+        run: |
+          echo "=== Fetching upstream VERSION file ==="
+          
+          # 方法1：直接curl获取上游VERSION文件内容（推荐，最简单）
+          UPSTREAM_VERSION=$(curl -s https://raw.githubusercontent.com/QuantumNous/new-api/main/VERSION)
+          
+          # 方法2：如果上游VERSION为空，使用git标签作为后备
+          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ]; then
+            echo "上游VERSION为空，使用默认版本..."
+            UPSTREAM_VERSION="v1.0.0-$(git rev-parse --short HEAD)"
+          fi
+          
+          # 写入到当前仓库的VERSION文件
+          echo "$UPSTREAM_VERSION" > VERSION
+          echo "✅ 使用上游版本: $(cat VERSION)"
+          
+          # 设置环境变量供后续步骤使用
+          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # ↑↑↑ 新增步骤结束 ↑↑↑
+      
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
+        
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
+        
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/newapi
-          tags: |
-            type=sha  # 用 commit SHA 作为镜像标签（避免覆盖）
-
+          
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64  # **同时构建 x86 和 M 系列镜像**
           push: true
-          tags: ${{ github.sha }}  # 用 commit SHA 作为唯一标签
+          tags: mimowen/new-api:latest
+          build-args: |
+            VERSION=${{ env.UPSTREAM_VERSION }}
