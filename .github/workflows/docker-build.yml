@@ -12,40 +12,72 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # ↓↓↓ 精简版：获取 VERSION ↓↓↓
+      # ↓↓↓ 精简获取 VERSION ↓↓↓
       - name: Get VERSION from upstream
         run: |
-          echo "=== 🔍 简化获取 VERSION ==="
+          echo "=== 🔍 获取 VERSION ==="
           
           # 尝试获取上游 VERSION
           UPSTREAM_VERSION=$(curl -s https://raw.githubusercontent.com/QuantumNous/new-api/main/VERSION || echo "")
           
-          # 如果失败，使用默认版本
+          # 验证和清理版本号
           if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ] || [ "${#UPSTREAM_VERSION}" -lt 2 ]; then
+            echo "⚠️ 上游 VERSION 无效，使用默认版本"
             UPSTREAM_VERSION="v1.0.0"
-            echo "⚠️ 使用默认版本: $UPSTREAM_VERSION"
-          else
-            echo "✅ 获取到上游版本: $UPSTREAM_VERSION"
           fi
           
-          # 写入 VERSION 文件
-          echo "$UPSTREAM_VERSION" > VERSION
-          echo "APP_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
-          echo "=== 📁 VERSION: $(cat VERSION) ==="
-      
-      # ↓↓↓ 关键：修补 Dockerfile - 替换包路径 ↓↓↓
-      - name: Patch Dockerfile - Replace package path
-        run: |
-          echo "=== 🔧 修补 Dockerfile ==="
+          # 严格清理版本字符串
+          CLEAN_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9\.\-]//g' | sed 's/^[^a-zA-Z0-9]*//;s/[^a-zA-Z0-9]*$//')
+          if [ -z "$CLEAN_VERSION" ]; then
+            CLEAN_VERSION="v1.0.0"
+          fi
           
-          # 替换包路径：QuantumNous → mimowen
+          echo "$CLEAN_VERSION" > VERSION
+          echo "APP_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "✅ 使用版本: $CLEAN_VERSION"
+      
+      # ↓↓↓ 关键修复：精确替换包路径 ↓↓↓
+      - name: Precise Dockerfile patch - Replace package path
+        run: |
+          echo "=== 🔧 精确修补 Dockerfile ==="
+          
+          # 备份原始文件
+          cp Dockerfile Dockerfile.backup
+          
+          # 精确替换：只替换构建命令中的包路径
           sed -i "s|github.com/QuantumNous/new-api|github.com/mimowen/new-api|g" Dockerfile
+          sed -i "s|github.com/***/new-api|github.com/mimowen/new-api|g" Dockerfile
           
           # 验证替换结果
-          echo "=== 📄 修补后的 Dockerfile 片段 ==="
-          grep -A 2 "go build" Dockerfile || echo "未找到构建命令"
+          echo "=== 📄 修补后的构建命令 ==="
+          grep "go build" Dockerfile || echo "未找到构建命令"
+          
+          # 显示完整Dockerfile用于调试
+          echo "=== 📋 完整 Dockerfile 内容 ==="
+          cat Dockerfile
           
           echo "✅ Dockerfile 修补完成"
+      
+      # ↓↓↓ 新增：验证 Go 模块路径 ↓↓↓
+      - name: Validate Go module path
+        run: |
+          echo "=== 🐛 验证 Go 模块路径 ==="
+          
+          # 检查 go.mod 中的模块路径
+          if [ -f go.mod ]; then
+            echo "=== 📄 go.mod 内容 ==="
+            cat go.mod
+            
+            # 如果 go.mod 中的模块路径是上游的，需要替换
+            if grep -q "github.com/QuantumNous/new-api" go.mod; then
+              echo "⚠️ go.mod 包含上游路径，需要替换"
+              sed -i "s|github.com/QuantumNous/new-api|github.com/mimowen/new-api|g" go.mod
+              echo "✅ go.mod 已修补"
+              cat go.mod
+            fi
+          else
+            echo "⚠️ 未找到 go.mod 文件"
+          fi
       
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -65,3 +97,5 @@ jobs:
           context: .
           push: true
           tags: mimowen/new-api:latest
+          build-args: |
+            VERSION=${{ env.APP_VERSION }}
