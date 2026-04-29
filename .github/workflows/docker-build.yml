@@ -12,111 +12,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # ↓↓↓ 关键修复：严格清理版本字符串 ↓↓↓
-      - name: Get and sanitize upstream VERSION
+      # ↓↓↓ 直接定死版本号 ↓↓↓
+      - name: Set fixed VERSION
         run: |
-          echo "=== 🔍 获取并严格清理上游VERSION ==="
-          
-          # 1. 获取上游VERSION
-          UPSTREAM_VERSION=$(curl -s https://raw.githubusercontent.com/QuantumNous/new-api/main/VERSION || echo "")
-          echo "上游获取到的内容: '$UPSTREAM_VERSION'"
-          
-          # 2. 如果上游VERSION无效，使用Git标签
-          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ] || [ "$UPSTREAM_VERSION" = "{}" ] || [ "${#UPSTREAM_VERSION}" -lt 2 ]; then
-            echo "⚠️ 上游VERSION无效，获取上游Git标签..."
-            
-            # 获取上游最新的Git标签（安全方式）
-            UPSTREAM_VERSION=$(git ls-remote --tags --sort=-v:refname https://github.com/QuantumNous/new-api.git 2>/dev/null | 
-              grep -v '{}' | 
-              head -n1 | 
-              awk -F'/' '{print $NF}' | 
-              sed 's/^v//;s/\^{}$//')
-            
-            if [ -z "$UPSTREAM_VERSION" ]; then
-              echo "⚠️ 无法获取Git标签，使用安全默认版本"
-              UPSTREAM_VERSION="1.0.0"
-            fi
-            
-            # 确保有v前缀
-            if [[ ! "$UPSTREAM_VERSION" =~ ^v ]]; then
-              UPSTREAM_VERSION="v$UPSTREAM_VERSION"
-            fi
-          fi
-          
-          echo "原始版本号: '$UPSTREAM_VERSION'"
-          
-          # 3. 严格清理版本字符串 - 关键修复！
-          CLEAN_VERSION=$(echo "$UPSTREAM_VERSION" | 
-            # 移除所有非字母数字字符，除了 . 和 -
-            sed 's/[^a-zA-Z0-9\.\-]//g' |
-            # 移除开头和结尾的非字母数字字符
-            sed 's/^[-\.]*//;s/[-\.]*$//;' |
-            # 替换多个连续的.或-为单个-
-            sed 's/[-\.]\+/-/g' |
-            # 确保以字母数字开头
-            sed 's/^[^a-zA-Z0-9]*//')
-          
-          # 4. 如果清理后为空，使用安全默认值
-          if [ -z "$CLEAN_VERSION" ] || [ "${#CLEAN_VERSION}" -lt 2 ]; then
-            CLEAN_VERSION="v1.0.0-$(git rev-parse --short HEAD)"
-            echo "⚠️ 清理后版本无效，使用安全版本: $CLEAN_VERSION"
-          fi
-          
-          # 5. 确保版本号格式正确 - 不能以-结尾！
-          if [[ "$CLEAN_VERSION" == *- ]]; then
-            CLEAN_VERSION="${CLEAN_VERSION%-}"  # 移除末尾的-
-          fi
-          
-          # 6. 再次验证 - 确保是有效的Go字符串
-          if [[ ! "$CLEAN_VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9\.\-]*[a-zA-Z0-9]$ ]]; then
-            echo "⚠️ 版本号格式无效，使用简化版本"
-            CLEAN_VERSION="v1.0.0"
-          fi
-          
-          echo "✅ 严格清理后的版本: '$CLEAN_VERSION'"
-          
-          # 7. 写入VERSION文件
-          echo "$CLEAN_VERSION" > VERSION
-          chmod 644 VERSION
-          
-          echo "=== 📁 VERSION文件验证 ==="
-          cat VERSION
-          echo "文件大小: $(wc -c < VERSION) 字节"
-          echo "文件内容（十六进制）: $(xxd -p VERSION)"
-          
-          # 8. 设置环境变量
-          echo "APP_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
-          echo "✅ 最终构建版本: $CLEAN_VERSION"
-        
-      # ↓↓↓ 关键调试：验证Go构建命令 ↓↓↓
-      - name: Validate Go build command
-        run: |
-          echo "=== 🐛 验证Go构建命令 ==="
-          
-          VERSION_CONTENT=$(cat VERSION)
-          echo "VERSION内容: '$VERSION_CONTENT'"
-          
-          # 测试ldflags参数
-          TEST_CMD="go build -ldflags \"-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION_CONTENT}'\" -o test_build"
-          
-          echo "🔧 测试构建命令:"
-          echo "$TEST_CMD"
-          
-          # 在安全环境中测试（不实际构建）
-          echo "=== 🧪 参数解析测试 ==="
-          PARAM_TEST=$(echo "${VERSION_CONTENT}" | sed 's/[^a-zA-Z0-9\.\-]//g')
-          echo "清理后的参数: '$PARAM_TEST'"
-          
-          # 验证字符串是否有效
-          if [[ "$VERSION_CONTENT" =~ ^[a-zA-Z0-9][a-zA-Z0-9\.\-]*[a-zA-Z0-9]$ ]]; then
-            echo "✅ 版本字符串格式有效"
-          else
-            echo "❌ 版本字符串格式无效！"
-            exit 1
-          fi
+          echo "v1.0.0" > VERSION
+          echo "✅ VERSION文件内容: $(cat VERSION)"
+          echo "APP_VERSION=v1.0.0" >> $GITHUB_ENV
       
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: actions/checkout@v4
         
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
