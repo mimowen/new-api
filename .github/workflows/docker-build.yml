@@ -12,31 +12,68 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # ↓↓↓ 新增：获取上游 VERSION 文件内容 ↓↓↓
-      - name: Fetch upstream VERSION
+      # ↓↓↓ 关键修复：安全获取上游VERSION + 验证 ↓↓↓
+      - name: Get and validate upstream VERSION
         run: |
-          echo "=== Fetching upstream VERSION file ==="
+          echo "=== 🔍 获取并验证上游VERSION ==="
           
-          # 方法1：直接curl获取上游VERSION文件内容（推荐，最简单）
+          # 1. 尝试获取上游VERSION文件
           UPSTREAM_VERSION=$(curl -s https://raw.githubusercontent.com/QuantumNous/new-api/main/VERSION)
           
-          # 方法2：如果上游VERSION为空，使用git标签作为后备
-          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ]; then
-            echo "上游VERSION为空，使用默认版本..."
-            UPSTREAM_VERSION="v1.0.0-$(git rev-parse --short HEAD)"
+          echo "上游获取到的内容: '$UPSTREAM_VERSION'"
+          
+          # 2. 验证内容 - 确保不是空或无效
+          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ] || [ "$UPSTREAM_VERSION" = "{}" ]; then
+            echo "⚠️ 上游VERSION无效，使用Git标签作为后备"
+            
+            # 尝试获取上游最新的Git标签
+            UPSTREAM_VERSION=$(git ls-remote --tags --sort=-v:refname https://github.com/QuantumNous/new-api.git | 
+              head -n1 | 
+              awk -F'/' '{print $NF}' | 
+              sed 's/^v//')
+            
+            if [ -z "$UPSTREAM_VERSION" ]; then
+              echo "⚠️ 无法获取Git标签，使用默认版本"
+              UPSTREAM_VERSION="1.0.0"
+            fi
+            
+            # 确保版本号格式正确
+            UPSTREAM_VERSION="v${UPSTREAM_VERSION}"
           fi
           
-          # 写入到当前仓库的VERSION文件
-          echo "$UPSTREAM_VERSION" > VERSION
-          echo "✅ 使用上游版本: $(cat VERSION)"
+          # 3. 清理版本号 - 移除可能导致问题的特殊字符
+          CLEAN_VERSION=$(echo "$UPSTREAM_VERSION" | sed 's/[^a-zA-Z0-9\.\-\_]/-/g' | sed 's/---*/-/g')
           
-          # 设置环境变量供后续步骤使用
-          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      # ↑↑↑ 新增步骤结束 ↑↑↑
-      
+          echo "✅ 清理后的版本号: '$CLEAN_VERSION'"
+          
+          # 4. 写入VERSION文件并验证
+          echo "$CLEAN_VERSION" > VERSION
+          chmod 644 VERSION
+          
+          echo "=== 📁 VERSION文件内容 ==="
+          cat VERSION
+          echo "文件大小: $(wc -c < VERSION) 字节"
+          
+          # 5. 设置环境变量
+          echo "APP_VERSION=$CLEAN_VERSION" >> $GITHUB_ENV
+          echo "✅ 最终使用的版本: $CLEAN_VERSION"
+        
+      # ↓↓↓ 调试步骤：显示构建命令预览 ↓↓↓
+      - name: Debug build command
+        run: |
+          echo "=== 🐛 调试：构建命令预览 ==="
+          VERSION_CONTENT=$(cat VERSION)
+          echo "VERSION文件内容: '$VERSION_CONTENT'"
+          
+          BUILD_CMD="go build -ldflags \"-s -w -X 'github.com/QuantumNous/new-api/common.Version=${VERSION_CONTENT}'\" -o new-api"
+          echo "🔧 构建命令:"
+          echo "$BUILD_CMD"
+          
+          # 测试参数解析
+          echo "=== 🧪 测试参数解析 ==="
+          echo "common.Version='${VERSION_CONTENT}'" > test_version.txt
+          cat test_version.txt
+          
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         
@@ -56,4 +93,4 @@ jobs:
           push: true
           tags: mimowen/new-api:latest
           build-args: |
-            VERSION=${{ env.UPSTREAM_VERSION }}
+            VERSION=${{ env.APP_VERSION }}
