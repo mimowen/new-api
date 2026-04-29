@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,7 +94,7 @@ func (mr *ModelRanker) InitializeCategory(category string, models []ModelWeight,
 	}
 
 	mr.rankings[category] = rankedModels
-	logrus.Infof("[ModelRanker] Initialized category %s with %d models (initial score: %.0f)", category, len(rankedModels), initialScore)
+	common.SysLog(fmt.Sprintf("[ModelRanker] Initialized category %s with %d models (initial score: %.0f)", category, len(rankedModels), initialScore))
 }
 
 func (mr *ModelRanker) GetNextModel(category string, excludeModels []string) string {
@@ -152,7 +152,7 @@ func (mr *ModelRanker) RecordSuccess(category, model string) {
 	}
 
 	mr.sortRankings(category)
-	logrus.Infof("[ModelRanker] Recorded success for %s in category %s (bonus: %.0f)", model, category, successBonus)
+	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded success for %s in category %s (bonus: %.0f)", model, category, successBonus))
 }
 
 func (mr *ModelRanker) RecordFailure(category, model string) {
@@ -183,7 +183,7 @@ func (mr *ModelRanker) RecordFailure(category, model string) {
 	}
 
 	mr.sortRankings(category)
-	logrus.Infof("[ModelRanker] Recorded failure for %s in category %s", model, category)
+	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded failure for %s in category %s", model, category))
 }
 
 func (mr *ModelRanker) sortRankings(category string) {
@@ -236,19 +236,19 @@ func LoadModelConfig() (*ModelMappingConfig, error) {
 	configOnce.Do(func() {
 		data, err := os.ReadFile("model_mapping.yaml")
 		if err == nil {
-			logrus.Infof("[ModelInterceptor] 配置文件加载成功: model_mapping.yaml")
+			common.SysLog("[ModelInterceptor] 配置文件加载成功: model_mapping.yaml")
 
 			tempConfig := &ModelMappingConfig{}
 			err = yaml.Unmarshal(data, tempConfig)
 			if err != nil {
-				logrus.Errorf("[ModelInterceptor] 配置文件解析错误: %v", err)
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 配置文件解析错误: %v", err))
 				fallbackConfig := getDefaultModelConfig()
 				modelConfig = &fallbackConfig
 				return
 			}
 			modelConfig = tempConfig
 		} else {
-			logrus.Info("[ModelInterceptor] 未找到配置文件，使用默认配置（不进行模型映射）")
+			common.SysLog("[ModelInterceptor] 未找到配置文件，使用默认配置（不进行模型映射）")
 			defaultConfig := getDefaultModelConfig()
 			modelConfig = &defaultConfig
 		}
@@ -286,7 +286,7 @@ const (
 func ModelInterceptor() gin.HandlerFunc {
 	config, _ := LoadModelConfig()
 	if !config.Enabled {
-		logrus.Info("[ModelInterceptor] 已禁用，跳过拦截")
+		common.SysLog("[ModelInterceptor] 已禁用，跳过拦截")
 		return func(c *gin.Context) { c.Next() }
 	}
 
@@ -306,21 +306,21 @@ func ModelInterceptor() gin.HandlerFunc {
 
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
-			logrus.Errorf("[ModelInterceptor] 读取请求体失败: %v", err)
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
 			c.Next()
 			return
 		}
 
 		body, err := storage.Bytes()
 		if err != nil {
-			logrus.Errorf("[ModelInterceptor] 读取存储数据失败: %v", err)
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
 			c.Next()
 			return
 		}
 
 		var requestBody map[string]interface{}
 		if err := common.Unmarshal(body, &requestBody); err != nil {
-			logrus.Errorf("[ModelInterceptor] 解析JSON失败: %v", err)
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
 			c.Next()
 			return
 		}
@@ -345,7 +345,7 @@ func ModelInterceptor() gin.HandlerFunc {
 
 		if newModel == "" {
 			newModel = originalModel
-			logrus.Warnf("[ModelInterceptor] 没有可用的模型，使用原始模型 %s", originalModel)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 没有可用的模型，使用原始模型 %s", originalModel))
 		}
 
 		triedModels = append(triedModels, newModel)
@@ -358,13 +358,13 @@ func ModelInterceptor() gin.HandlerFunc {
 		}
 		c.Set(modelRetryContextKey, retryCtx)
 
-		logrus.Infof("[ModelInterceptor] 模型替换: %s -> %s (category: %s, tried: %v)", originalModel, newModel, category, triedModels)
+		common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s)", originalModel, newModel, category))
 
 		requestBody["model"] = newModel
 
 		newBody, err := common.Marshal(requestBody)
 		if err != nil {
-			logrus.Errorf("[ModelInterceptor] 重新序列化失败: %v", err)
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
 			c.Next()
 			return
 		}
@@ -374,8 +374,6 @@ func ModelInterceptor() gin.HandlerFunc {
 		c.Set("original_model", originalModel)
 		c.Set("mapped_model", newModel)
 		c.Set("model_category", category)
-
-		logrus.Infof("[ModelInterceptor] 模型映射: %s -> %s (category: %s)", originalModel, newModel, category)
 
 		c.Next()
 	}
@@ -463,14 +461,14 @@ func PrepareNextModel(c *gin.Context) bool {
 
 	var requestBody map[string]interface{}
 	if err := common.Unmarshal(retryCtx.body, &requestBody); err != nil {
-		logrus.Errorf("[ModelInterceptor] 解析原始请求体失败: %v", err)
+		common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
 		return false
 	}
 
 	requestBody["model"] = nextModel
 	newBody, err := common.Marshal(requestBody)
 	if err != nil {
-		logrus.Errorf("[ModelInterceptor] 重新序列化失败: %v", err)
+		common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
 		return false
 	}
 
@@ -478,7 +476,7 @@ func PrepareNextModel(c *gin.Context) bool {
 	c.Request.ContentLength = int64(len(newBody))
 	c.Set("mapped_model", nextModel)
 
-	logrus.Infof("[ModelInterceptor] 切换到下一个模型: %s (已尝试: %v)", nextModel, retryCtx.triedModels)
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] 切换到下一个模型: %s (已尝试: %v)", nextModel, retryCtx.triedModels))
 
 	return true
 }
