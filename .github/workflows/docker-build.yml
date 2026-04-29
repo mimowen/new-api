@@ -12,15 +12,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # ↓↓↓ 直接定死版本号 ↓↓↓
-      - name: Set fixed VERSION
+      # ↓↓↓ 精简版：获取 VERSION ↓↓↓
+      - name: Get VERSION from upstream
         run: |
-          echo "v1.0.0" > VERSION
-          echo "✅ VERSION文件内容: $(cat VERSION)"
-          echo "APP_VERSION=v1.0.0" >> $GITHUB_ENV
+          echo "=== 🔍 简化获取 VERSION ==="
+          
+          # 尝试获取上游 VERSION
+          UPSTREAM_VERSION=$(curl -s https://raw.githubusercontent.com/QuantumNous/new-api/main/VERSION || echo "")
+          
+          # 如果失败，使用默认版本
+          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ] || [ "${#UPSTREAM_VERSION}" -lt 2 ]; then
+            UPSTREAM_VERSION="v1.0.0"
+            echo "⚠️ 使用默认版本: $UPSTREAM_VERSION"
+          else
+            echo "✅ 获取到上游版本: $UPSTREAM_VERSION"
+          fi
+          
+          # 写入 VERSION 文件
+          echo "$UPSTREAM_VERSION" > VERSION
+          echo "APP_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
+          echo "=== 📁 VERSION: $(cat VERSION) ==="
+      
+      # ↓↓↓ 关键：修补 Dockerfile - 替换包路径 ↓↓↓
+      - name: Patch Dockerfile - Replace package path
+        run: |
+          echo "=== 🔧 修补 Dockerfile ==="
+          
+          # 替换包路径：QuantumNous → mimowen
+          sed -i "s|github.com/QuantumNous/new-api|github.com/mimowen/new-api|g" Dockerfile
+          
+          # 验证替换结果
+          echo "=== 📄 修补后的 Dockerfile 片段 ==="
+          grep -A 2 "go build" Dockerfile || echo "未找到构建命令"
+          
+          echo "✅ Dockerfile 修补完成"
       
       - name: Set up QEMU
-        uses: actions/checkout@v4
+        uses: docker/setup-qemu-action@v3
         
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -37,5 +65,3 @@ jobs:
           context: .
           push: true
           tags: mimowen/new-api:latest
-          build-args: |
-            VERSION=${{ env.APP_VERSION }}
