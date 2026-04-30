@@ -29,6 +29,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64 
           tags: mimowen/new-api:latest
           build-args: |
             VERSION=${{ env.APP_VERSION }}
