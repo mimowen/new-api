@@ -35,3 +35,18 @@ data/
 .test
 token_estimator_test.go
 skills-lock.json
+
+# === 开发期临时文件（模型拦截器功能） ===
+test/test_*.go
+test/validate_mapping.go
+test_*.exe
+test_*.py
+test_*.txt
+quick_test.py
+external_model_mapping.yaml
+Dockerfile.custom.proxy
+Dockerfile.simple
+AGENTS.md
+CLAUDE.md
+MODEL_INTERCEPTOR_README.md
+MODEL_MAPPING_SOLUTION.md

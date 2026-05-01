@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -79,11 +80,21 @@ func (mr *ModelRanker) InitializeCategory(category string, models []ModelWeight,
 	}
 
 	if initialScore == 0 {
-		initialScore = 40
+		initialScore = 100
+	}
+
+	enabledModels := model.GetEnabledModels()
+	enabledSet := make(map[string]bool)
+	for _, m := range enabledModels {
+		enabledSet[strings.ToLower(m)] = true
 	}
 
 	rankedModels := make([]*RankedModel, 0, len(models))
 	for _, mw := range models {
+		if !enabledSet[strings.ToLower(mw.Model)] {
+			common.SysLog(fmt.Sprintf("[ModelRanker] 模型 %s 不在系统可用模型中，已从 %s 分组移除", mw.Model, category))
+			continue
+		}
 		rankedModels = append(rankedModels, &RankedModel{
 			Model:     mw.Model,
 			Score:     initialScore,
@@ -167,7 +178,7 @@ func (mr *ModelRanker) RecordFailure(category, model string) {
 	sc := getScoreConfig()
 	failurePenalty := sc.FailurePenalty
 	if failurePenalty == 0 {
-		failurePenalty = 20
+		failurePenalty = 5
 	}
 
 	for _, rm := range rankedModels {
@@ -183,7 +194,7 @@ func (mr *ModelRanker) RecordFailure(category, model string) {
 	}
 
 	mr.sortRankings(category)
-	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded failure for %s in category %s", model, category))
+	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded failure for %s in category %s (penalty: %.0f)", model, category, failurePenalty))
 }
 
 func (mr *ModelRanker) sortRankings(category string) {
@@ -193,6 +204,65 @@ func (mr *ModelRanker) sortRankings(category string) {
 			if rankedModels[j].Score > rankedModels[i].Score {
 				rankedModels[i], rankedModels[j] = rankedModels[j], rankedModels[i]
 			}
+		}
+	}
+}
+
+func (mr *ModelRanker) AddModel(category, modelName string, initialScore float64) {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+
+	if initialScore == 0 {
+		initialScore = 100
+	}
+
+	rankedModels, exists := mr.rankings[category]
+	if !exists {
+		mr.rankings[category] = []*RankedModel{
+			{
+				Model:     modelName,
+				Score:     initialScore,
+				LastUsed:  time.Time{},
+				Successes: 0,
+				Failures:  0,
+			},
+		}
+		common.SysLog(fmt.Sprintf("[ModelRanker] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
+		return
+	}
+
+	for _, rm := range rankedModels {
+		if rm.Model == modelName {
+			common.SysLog(fmt.Sprintf("[ModelRanker] Model %s already exists in category %s", modelName, category))
+			return
+		}
+	}
+
+	mr.rankings[category] = append(rankedModels, &RankedModel{
+		Model:     modelName,
+		Score:     initialScore,
+		LastUsed:  time.Time{},
+		Successes: 0,
+		Failures:  0,
+	})
+	mr.sortRankings(category)
+	common.SysLog(fmt.Sprintf("[ModelRanker] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
+}
+
+func (mr *ModelRanker) RemoveModel(category, modelName string) {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+
+	rankedModels, exists := mr.rankings[category]
+	if !exists {
+		return
+	}
+
+	for i, rm := range rankedModels {
+		if rm.Model == modelName {
+			mr.rankings[category] = append(rankedModels[:i], rankedModels[i+1:]...)
+			common.SysLog(fmt.Sprintf("[ModelRanker] Removed model %s from category %s", modelName, category))
+			return
 		}
 	}
 }
@@ -232,14 +302,37 @@ func (mr *ModelRanker) GetRankStatus() map[string]RankStatus {
 	return status
 }
 
+func (mr *ModelRanker) GetCategoryModelCount(category string) int {
+	mr.mu.RLock()
+	defer mr.mu.RUnlock()
+
+	rankedModels, exists := mr.rankings[category]
+	if !exists {
+		return 0
+	}
+	return len(rankedModels)
+}
+
 func LoadModelConfig() (*ModelMappingConfig, error) {
 	configOnce.Do(func() {
-		data, err := os.ReadFile("model_mapping.yaml")
-		if err == nil {
-			common.SysLog("[ModelInterceptor] 配置文件加载成功: model_mapping.yaml")
+		configPaths := []string{"model_mapping.yaml", "/data/model_mapping.yaml"}
+		var foundData []byte
+		var foundPath string
+
+		for _, path := range configPaths {
+			data, err := os.ReadFile(path)
+			if err == nil {
+				foundData = data
+				foundPath = path
+				break
+			}
+		}
+
+		if foundData != nil {
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 配置文件加载成功: %s", foundPath))
 
 			tempConfig := &ModelMappingConfig{}
-			err = yaml.Unmarshal(data, tempConfig)
+			err := yaml.Unmarshal(foundData, tempConfig)
 			if err != nil {
 				common.SysError(fmt.Sprintf("[ModelInterceptor] 配置文件解析错误: %v", err))
 				fallbackConfig := getDefaultModelConfig()
@@ -275,8 +368,8 @@ type modelRetryContext struct {
 	category      string
 	originalModel string
 	triedModels   []string
-	currentIndex  int
 	body          []byte
+	intercepted   bool
 }
 
 const (
@@ -333,6 +426,15 @@ func ModelInterceptor() gin.HandlerFunc {
 
 		category := DetermineCategory(originalModel, config)
 
+		if category == "" {
+			c.Set(modelRetryContextKey, &modelRetryContext{
+				originalModel: originalModel,
+				intercepted:   false,
+			})
+			c.Next()
+			return
+		}
+
 		var triedModels []string
 		if existingCtx, exists := c.Get(modelRetryContextKey); exists {
 			if retryCtx, ok := existingCtx.(*modelRetryContext); ok {
@@ -344,8 +446,14 @@ func ModelInterceptor() gin.HandlerFunc {
 		newModel := ranker.GetNextModel(category, triedModels)
 
 		if newModel == "" {
-			newModel = originalModel
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 没有可用的模型，使用原始模型 %s", originalModel))
+			c.Set(modelRetryContextKey, &modelRetryContext{
+				category:      category,
+				originalModel: originalModel,
+				intercepted:   false,
+			})
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始模型 %s", category, originalModel))
+			c.Next()
+			return
 		}
 
 		triedModels = append(triedModels, newModel)
@@ -355,6 +463,7 @@ func ModelInterceptor() gin.HandlerFunc {
 			originalModel: originalModel,
 			triedModels:   triedModels,
 			body:          body,
+			intercepted:   true,
 		}
 		c.Set(modelRetryContextKey, retryCtx)
 
@@ -390,11 +499,25 @@ func DetermineCategory(modelName string, config *ModelMappingConfig) string {
 		}
 	}
 
-	return "default"
+	return ""
 }
 
 func RecordModelResult(c *gin.Context, success bool) {
-	category := c.GetString("model_category")
+	existingCtx, exists := c.Get(modelRetryContextKey)
+	if !exists {
+		return
+	}
+
+	retryCtx, ok := existingCtx.(*modelRetryContext)
+	if !ok {
+		return
+	}
+
+	if !retryCtx.intercepted {
+		return
+	}
+
+	category := retryCtx.category
 	model := c.GetString("mapped_model")
 
 	if category == "" || model == "" {
@@ -420,15 +543,14 @@ func HasMoreModelsToTry(c *gin.Context) bool {
 		return false
 	}
 
-	if modelConfig == nil {
-		return false
-	}
-	cfg, exists := modelConfig.Mappings[retryCtx.category]
-	if !exists {
+	if !retryCtx.intercepted {
 		return false
 	}
 
-	return len(retryCtx.triedModels) < len(cfg.Models)
+	ranker := GetModelRanker()
+	count := ranker.GetCategoryModelCount(retryCtx.category)
+
+	return len(retryCtx.triedModels) < count
 }
 
 func PrepareNextModel(c *gin.Context) bool {
@@ -442,11 +564,7 @@ func PrepareNextModel(c *gin.Context) bool {
 		return false
 	}
 
-	if modelConfig == nil {
-		return false
-	}
-	cfg, exists := modelConfig.Mappings[retryCtx.category]
-	if !exists || len(retryCtx.triedModels) >= len(cfg.Models) {
+	if !retryCtx.intercepted {
 		return false
 	}
 

@@ -1,60 +1,531 @@
 enabled: true
 score_config:
-  initial_score: 40
+  initial_score: 100
   success_bonus: 10
-  failure_penalty: 20
+  failure_penalty: 5
+
 mappings:
-  code:
-    patterns:
-      - "code"
-      - "coder"
-      - "programming"
-      - "dev"
+  high_tier:
+    patterns: []
     models:
-      - model: "qwen3.6-plus-free"
-        weight: 70
-      - model: "kimi-k2.6-free"
-        weight: 30
-  vision:
-    patterns:
-      - "vision"
-      - "vl"
-      - "image"
-      - "visual"
-      - "gpt-4-vision"
+      - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
+        weight: 0.8
+      - model: "meta/llama-4-maverick-17b-128e-instruct"
+        weight: 0.8
+      - model: "MiniMax/MiniMax-M1-80k"
+        weight: 0.8
+      - model: "qwen3.5-plus-free"
+        weight: 0.8
+      - model: "spark-lite-free"
+        weight: 0.8
+      - model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+        weight: 0.8
+      - model: "Qwen/Qwen3-VL-235B-A22B-Instruct"
+        weight: 0.8
+      - model: "Qwen3.5-2B-free"
+        weight: 0.8
+      - model: "doubao-seed-2.0-pro-free"
+        weight: 0.8
+      - model: "inclusionAI: Ling-2.6-flash (free)"
+        weight: 0.8
+      - model: "mistralai/Ministral-8B-Instruct-2410"
+        weight: 0.8
+      - model: "mistralai/magistral-small-2506"
+        weight: 0.8
+      - model: "mistralai/ministral-14b-instruct-2512"
+        weight: 0.8
+      - model: "moonshotai/kimi-k2-instruct-0905"
+        weight: 0.8
+      - model: "Qwen: Qwen3 Next 80B A3B Instruct"
+        weight: 0.8
+      - model: "KAT-Coder-ProV2-free"
+        weight: 0.8
+      - model: "ai21labs/jamba-1.5-large-instruct"
+        weight: 0.8
+      - model: "mistralai/codestral-22b-instruct-v0.1"
+        weight: 0.8
+      - model: "K2.6-code-preview-free"
+        weight: 0.8
+      - model: "deepseek-ai/deepseek-v3.1-terminus"
+        weight: 0.8
+      - model: "meta/llama-guard-4-12b"
+        weight: 0.8
+      - model: "Cogview-3-Flash"
+        weight: 0.8
+      - model: "01-ai/yi-large"
+        weight: 0.8
+      - model: "Qwen/Qwen3-235B-A22B"
+        weight: 0.8
+      - model: "Qwen/Qwen3-30B-A3B-Thinking-2507"
+        weight: 0.8
+      - model: "Qwen/Qwen3-Next-80B-A3B-Thinking"
+        weight: 0.8
+      - model: "Qwen/Qwen3-VL-8B-Instruct"
+        weight: 0.8
+      - model: "Qwen/Qwen3-VL-8B-Thinking"
+        weight: 0.8
+      - model: "abacusai/dracarys-llama-3.1-70b-instruct"
+        weight: 0.8
+      - model: "arcee-ai/trinity-large-preview:free"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+        weight: 0.8
+      - model: "Google: Gemma 3 27B"
+        weight: 0.8
+      - model: "Google: Gemma 3 27B (free)"
+        weight: 0.8
+      - model: "Meta: Llama 3.2 3B Instruct (free)"
+        weight: 0.8
+      - model: "meta/llama-3.1-405b-instruct"
+        weight: 0.8
+      - model: "meta/llama-3.1-70b-instruct"
+        weight: 0.8
+      - model: "meta/llama-3.2-11b-vision-instruct"
+        weight: 0.8
+      - model: "meta/llama-3.2-3b-instruct"
+        weight: 0.8
+      - model: "meta/llama-3.2-90b-vision-instruct"
+        weight: 0.8
+      - model: "mistralai/mistral-medium-3-instruct"
+        weight: 0.8
+      - model: "mistralai/mistral-nemotron"
+        weight: 0.8
+      - model: "nv-mistralai/mistral-nemo-12b-instruct"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemotron-51b-instruct"
+        weight: 0.8
+      - model: "NVIDIA: Llama 3.1 Nemotron 70B Instruct"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemotron-nano-8b-v1"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+        weight: 0.8
+      - model: "nvidia/llama-3.3-nemotron-super-49b-v1"
+        weight: 0.8
+      - model: "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5"
+        weight: 0.8
+      - model: "nvidia/llama-nemotron-embed-1b-v2"
+        weight: 0.8
+      - model: "nvidia/llama-nemotron-embed-vl-1b-v2"
+        weight: 0.8
+      - model: "Qwen: Qwen3 Next 80B A3B Instruct (free)"
+        weight: 0.8
+      - model: "Qwen: Qwen3 Next 80B A3B Thinking"
+        weight: 0.8
+      - model: "Z.ai: GLM 4.5 Air (free)"
+        weight: 0.8
+      - model: "LLM-Research/c4ai-command-r-plus-08-2024"
+        weight: 0.8
+      - model: "THUDM/GLM-4-9B-0414"
+        weight: 0.8
+      - model: "Mistral Large"
+        weight: 0.8
+      - model: "mistralai/mistral-large-2-instruct"
+        weight: 0.8
+      - model: "nvidia/nemotron-mini-4b-instruct"
+        weight: 0.8
+      - model: "NVIDIA: Nemotron Nano 12B 2 VL"
+        weight: 0.8
+      - model: "NVIDIA: Nemotron Nano 12B 2 VL (free)"
+        weight: 0.8
+      - model: "NVIDIA: Nemotron Nano 9B V2 (free)"
+        weight: 0.8
+      - model: "nvidia/nvidia-nemotron-nano-9b-v2"
+        weight: 0.8
+      - model: "PaddlePaddle/ERNIE-4.5-300B-A47B-PT"
+        weight: 0.8
+      - model: "PaddlePaddle/ERNIE-4.5-21B-A3B-PT"
+        weight: 0.8
+      - model: "llama-3.3-70b-versatile"
+        weight: 0.8
+      - model: "Meta: Llama 3.3 70B Instruct (free)"
+        weight: 0.8
+      - model: "meta/llama-3.3-70b-instruct"
+        weight: 0.8
+      - model: "mistralai/mixtral-8x22b-instruct-v0.1"
+        weight: 0.8
+      - model: "mistralai/mixtral-8x22b-v0.1"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-OCR"
+        weight: 0.8
+      - model: "meta/llama-3.2-1b-instruct"
+        weight: 0.8
+      - model: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+        weight: 0.8
+      - model: "nvidia/llama-3.2-nv-embedqa-1b-v1"
+        weight: 0.8
+      - model: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+        weight: 0.8
+      - model: "Qwen/QwQ-32B"
+        weight: 0.8
+      - model: "Qwen/QwQ-32B-Preview"
+        weight: 0.8
+      - model: "Qwen/Qwen3-4B"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+        weight: 0.8
+      - model: "Google: Gemma 3 12B"
+        weight: 0.8
+      - model: "Google: Gemma 3 12B (free)"
+        weight: 0.8
+      - model: "Google: Gemma 3 4B"
+        weight: 0.8
+      - model: "Google: Gemma 3 4B (free)"
+        weight: 0.8
+      - model: "LiquidAI: LFM2.5-1.2B-Thinking (free)"
+        weight: 0.8
+      - model: "mistralai/Mistral-Small-Instruct-2409"
+        weight: 0.8
+      - model: "mistralai/mixtral-8x7b-instruct-v0.1"
+        weight: 0.8
+      - model: "qwen/qwen2.5-coder-32b-instruct"
+        weight: 0.8
+      - model: "PaddlePaddle/ERNIE-4.5-VL-28B-A3B-PT"
+        weight: 0.8
+      - model: "moonshotai/Kimi-K2.5"
+        weight: 0.8
+      - model: "MoonshotAI: Kimi K2.5"
+        weight: 0.8
+      - model: "meta/llama-3.1-8b-instruct"
+        weight: 0.8
+      - model: "microsoft/phi-4-mini-instruct"
+        weight: 0.8
+      - model: "microsoft/phi-4-multimodal-instruct"
+        weight: 0.8
+      - model: "nvidia/llama-3.1-nemoguard-8b-topic-control"
+        weight: 0.8
+      - model: "google/gemma-2-2b-it"
+        weight: 0.8
+      - model: "google/gemma-3n-e2b-it"
+        weight: 0.8
+      - model: "Google: Gemma 3n 4B"
+        weight: 0.8
+      - model: "meta/codellama-70b"
+        weight: 0.8
+      - model: "meta/llama2-70b"
+        weight: 0.8
+      - model: "Qwen/Qwen3.5-35B-A3B"
+        weight: 0.8
+      - model: "Qwen/Qwen3.5-122B-A10B"
+        weight: 0.8
+      - model: "Qwen: Qwen3.5-122B-A10B"
+        weight: 0.8
+      - model: "Qwen/Qwen3.5-397B-A17B"
+        weight: 0.8
+      - model: "Qwen: Qwen3.5 397B A17B"
+        weight: 0.8
+      - model: "mistralai/mistral-7b-instruct-v0.3"
+        weight: 0.8
+      - model: "nvidia/nv-embedqa-mistral-7b-v2"
+        weight: 0.8
+      - model: "XiaomiMiMo/MiMo-V2-Flash"
+        weight: 0.8
+      - model: "Qwen/Qwen3.5-27B"
+        weight: 0.8
+      - model: "ZhipuAI/GLM-5"
+        weight: 0.8
+      - model: "MoonshotAI: Kimi K2 Thinking"
+        weight: 0.8
+      - model: "moonshotai/kimi-k2-instruct"
+        weight: 0.8
+      - model: "GLM-4-Flash-250414"
+        weight: 0.8
+      - model: "GLM-4.1V-Thinking-Flash"
+        weight: 0.8
+      - model: "GLM-4.6V-Flash"
+        weight: 0.8
+      - model: "GLM-4.7-Flash"
+        weight: 0.8
+      - model: "GLM-4V-Flash"
+        weight: 0.8
+      - model: "ZhipuAI/GLM-4.7-Flash"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-V3.2"
+        weight: 0.8
+      - model: "deepseek-ai/deepseek-v3.2"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-0528"
+        weight: 0.8
+      - model: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+        weight: 0.8
+      - model: "meituan-longcat/LongCat-Flash-Lite"
+        weight: 0.8
+  mid_tier:
+    patterns: []
     models:
-      - model: "qwen3.6-plus-free"
-        weight: 50
-      - model: "kimi-k2.6-free"
-        weight: 50
-  agent:
-    patterns:
-      - "agent"
-      - "function"
-      - "tool"
-      - "assistant"
+      - model: "MiniMax/MiniMax-M2.5"
+        weight: 2.3
+      - model: "MiniMax: MiniMax M2.5 (free)"
+        weight: 2.3
+      - model: "minimaxai/minimax-m2.5"
+        weight: 2.3
+      - model: "deepseek-ai/deepseek-v4-pro"
+        weight: 2.3
+      - model: "NVIDIA: Nemotron 3 Super"
+        weight: 2.3
+      - model: "NVIDIA: Nemotron 3 Super (free)"
+        weight: 2.3
+      - model: "deepseek-ai/DeepSeek-V4-Flash"
+        weight: 2.3
+      - model: "deepseek-ai/deepseek-v4-flash"
+        weight: 2.3
+      - model: "NVIDIA: Nemotron 3 Nano 30B A3B"
+        weight: 2.3
+      - model: "NVIDIA: Nemotron 3 Nano 30B A3B (free)"
+        weight: 2.3
+      - model: "nvidia/nemotron-nano-3-30b-a3b"
+        weight: 2.3
+      - model: "CogVideoX-Flash"
+        weight: 2.3
+      - model: "qwen-flash-free"
+        weight: 2.3
+      - model: "ZhipuAI/GLM-5.1"
+        weight: 2.3
+      - model: "glm-5.1-free"
+        weight: 2.3
+      - model: "Z.ai: GLM 5.1"
+        weight: 2.3
+      - model: "Qwen/Qwen3-235B-A22B-Thinking-2507"
+        weight: 2.3
+      - model: "OpenAI: gpt-oss-120b"
+        weight: 2.3
+      - model: "OpenAI: gpt-oss-120b (free)"
+        weight: 2.3
+      - model: "Google: Gemma 4 26B A4B  (free)"
+        weight: 2.3
+      - model: "mistralai/Mistral-Large-Instruct-2407"
+        weight: 2.3
+      - model: "mistralai/mistral-large-3-675b-instruct-2512"
+        weight: 2.3
+      - model: "MiniMax-M2.7-free"
+        weight: 2.3
+      - model: "MiniMax/MiniMax-M2.7"
+        weight: 2.3
+      - model: "minimaxai/minimax-m2.7"
+        weight: 2.3
+      - model: "PaddlePaddle/ERNIE-4.5-0.3B-PT"
+        weight: 2.3
+      - model: "stepfun-ai/Step-3.5-Flash"
+        weight: 2.3
+      - model: "stepfun-ai/step-3.5-flash"
+        weight: 2.3
+      - model: "Google: Gemma 4 31B"
+        weight: 2.3
+      - model: "Google: Gemma 4 31B (free)"
+        weight: 2.3
+      - model: "Qwen/Qwen3-30B-A3B"
+        weight: 2.3
+      - model: "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        weight: 2.3
+      - model: "Qwen/Qwen3-235B-A22B-Instruct-2507"
+        weight: 2.3
+      - model: "mimo-v2-pro-free"
+        weight: 2.3
+      - model: "OpenAI: gpt-oss-20b"
+        weight: 2.3
+      - model: "OpenAI: gpt-oss-20b (free)"
+        weight: 2.3
+      - model: "mistralai/mistral-small-4-119b-2603"
+        weight: 2.3
+      - model: "Qwen/Qwen3-0.6B"
+        weight: 2.3
+      - model: "Qwen/Qwen3-1.7B"
+        weight: 2.3
+      - model: "Qwen/Qwen3-14B"
+        weight: 2.3
+      - model: "Qwen/Qwen3-32B"
+        weight: 2.3
+      - model: "Qwen/Qwen3-8B"
+        weight: 2.3
+      - model: "Qwen3-1.7B-free"
+        weight: 2.3
+      - model: "qwen3-8b-free"
+        weight: 2.3
+  low_tier:
+    patterns: []
     models:
-      - model: "qwen3.6-plus-free"
-        weight: 60
-      - model: "kimi-k2.6-free"
-        weight: 40
-  gpt:
-    patterns:
-      - "gpt"
-      - "gpt-3"
-      - "gpt-4"
-    models:
-      - model: "qwen3.6-plus-free"
-        weight: 50
-      - model: "kimi-k2.6-free"
-        weight: 50
+      - model: "Qwen/Qwen3-Coder-480B-A35B-Instruct"
+        weight: 1.3
+      - model: "qwen/qwen3-coder-480b-a35b-instruct"
+        weight: 1.3
+      - model: "Qwen: Qwen3 Coder 480B A35B (free)"
+        weight: 1.3
+      - model: "DMXAPI-CodeX-Free"
+        weight: 1.3
+      - model: "MusePublic/Qwen-Image-Edit"
+        weight: 1.3
+      - model: "OpenGVLab/InternVL3_5-241B-A28B"
+        weight: 1.3
+      - model: "Qwen/QVQ-72B-Preview"
+        weight: 1.3
+      - model: "Qwen/Qwen-Image-Edit"
+        weight: 1.3
+      - model: "Shanghai_AI_Laboratory/Intern-S1"
+        weight: 1.3
+      - model: "Shanghai_AI_Laboratory/Intern-S1-mini"
+        weight: 1.3
+      - model: "THUDM/GLM-Z1-9B-0414"
+        weight: 1.3
+      - model: "XGenerationLab/XiYanSQL-QwenCoder-32B-2412"
+        weight: 1.3
+      - model: "XGenerationLab/XiYanSQL-QwenCoder-32B-2504"
+        weight: 1.3
+      - model: "adept/fuyu-8b"
+        weight: 1.3
+      - model: "aisingapore/sea-lion-7b-instruct"
+        weight: 1.3
+      - model: "baai/bge-m3"
+        weight: 1.3
+      - model: "bge-reranker-v2-m3-free"
+        weight: 1.3
+      - model: "bigcode/starcoder2-15b"
+        weight: 1.3
+      - model: "bytedance/seed-oss-36b-instruct"
+        weight: 1.3
+      - model: "Venice: Uncensored (free)"
+        weight: 1.3
+      - model: "databricks/dbrx-instruct"
+        weight: 1.3
+      - model: "deepseek-ai/deepseek-coder-6.7b-instruct"
+        weight: 1.3
+      - model: "google/codegemma-1.1-7b"
+        weight: 1.3
+      - model: "google/codegemma-7b"
+        weight: 1.3
+      - model: "google/deplot"
+        weight: 1.3
+      - model: "google/gemma-2b"
+        weight: 1.3
+      - model: "Google: Gemma 3n 2B (free)"
+        weight: 1.3
+      - model: "Google: Gemma 3n 4B (free)"
+        weight: 1.3
+      - model: "google/recurrentgemma-2b"
+        weight: 1.3
+      - model: "ibm/granite-3.0-3b-a800m-instruct"
+        weight: 1.3
+      - model: "ibm/granite-3.0-8b-instruct"
+        weight: 1.3
+      - model: "ibm/granite-34b-code-instruct"
+        weight: 1.3
+      - model: "ibm/granite-8b-code-instruct"
+        weight: 1.3
+      - model: "iic/GUI-Owl-1.5-8B-Instruct"
+        weight: 1.3
+      - model: "iic/GUI-Owl-1.5-8B-Think"
+        weight: 1.3
+      - model: "LiquidAI: LFM2.5-1.2B-Instruct (free)"
+        weight: 1.3
+      - model: "microsoft/kosmos-2"
+        weight: 1.3
+      - model: "microsoft/phi-3-vision-128k-instruct"
+        weight: 1.3
+      - model: "microsoft/phi-3.5-moe-instruct"
+        weight: 1.3
+      - model: "mistralai/devstral-2-123b-instruct-2512"
+        weight: 1.3
+      - model: "Nous: Hermes 3 405B Instruct (free)"
+        weight: 1.3
+      - model: "nvidia/ai-synthetic-video-detector"
+        weight: 1.3
+      - model: "nvidia/cosmos-reason2-8b"
+        weight: 1.3
+      - model: "nvidia/embed-qa-4"
+        weight: 1.3
+      - model: "nvidia/gliner-pii"
+        weight: 1.3
+      - model: "nvidia/ising-calibration-1-35b-a3b"
+        weight: 1.3
+      - model: "nvidia/llama-3.1-nemoguard-8b-content-safety"
+        weight: 1.3
+      - model: "nvidia/llama-3.2-nemoretriever-300m-embed-v1"
+        weight: 1.3
+      - model: "nvidia/llama3-chatqa-1.5-70b"
+        weight: 1.3
+      - model: "nvidia/mistral-nemo-minitron-8b-8k-instruct"
+        weight: 1.3
+      - model: "nvidia/nemoretriever-parse"
+        weight: 1.3
+      - model: "nvidia/nemotron-3-content-safety"
+        weight: 1.3
+      - model: "nvidia/nemotron-4-340b-instruct"
+        weight: 1.3
+      - model: "nvidia/nemotron-4-340b-reward"
+        weight: 1.3
+      - model: "nvidia/nemotron-content-safety-reasoning-4b"
+        weight: 1.3
+      - model: "nvidia/nemotron-parse"
+        weight: 1.3
+      - model: "nvidia/neva-22b"
+        weight: 1.3
+      - model: "nvidia/nv-embed-v1"
+        weight: 1.3
+      - model: "nvidia/nv-embedcode-7b-v1"
+        weight: 1.3
+      - model: "nvidia/nv-embedqa-e5-v5"
+        weight: 1.3
+      - model: "nvidia/nvclip"
+        weight: 1.3
+      - model: "nvidia/riva-translate-4b-instruct"
+        weight: 1.3
+      - model: "nvidia/riva-translate-4b-instruct-v1.1"
+        weight: 1.3
+      - model: "nvidia/vila"
+        weight: 1.3
+      - model: "opencompass/CompassJudger-1-32B-Instruct"
+        weight: 1.3
+      - model: "Free Models Router"
+        weight: 1.3
+      - model: "sarvamai/sarvam-m"
+        weight: 1.3
+      - model: "snowflake/arctic-embed-l"
+        weight: 1.3
+      - model: "stockmark/stockmark-2-100b-instruct"
+        weight: 1.3
+      - model: "tencent/Hunyuan-MT-7B"
+        weight: 1.3
+      - model: "upstage/solar-10.7b-instruct"
+        weight: 1.3
+      - model: "writer/palmyra-creative-122b"
+        weight: 1.3
+      - model: "writer/palmyra-fin-70b-32k"
+        weight: 1.3
+      - model: "writer/palmyra-med-70b"
+        weight: 1.3
+      - model: "writer/palmyra-med-70b-32k"
+        weight: 1.3
+      - model: "z-ai/glm4.7"
+        weight: 1.3
+      - model: "z-ai/glm5"
+        weight: 1.3
+      - model: "zyphra/zamba2-7b-instruct"
+        weight: 1.3
   default:
     patterns: []
     models:
-      - model: "qwen3.6-plus-free"
-        weight: 50
-      - model: "kimi-k2.6-free"
-        weight: 50
+      - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
+        weight: 20
+      - model: "meta/llama-4-maverick-17b-128e-instruct"
+        weight: 20
+      - model: "MiniMax/MiniMax-M1-80k"
+        weight: 20
+      - model: "qwen3.5-plus-free"
+        weight: 20
+      - model: "spark-lite-free"
+        weight: 20
+
 intercept_endpoints:
   - /v1/chat/completions
   - /v1/completions

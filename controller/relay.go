@@ -669,6 +669,70 @@ func GetModelRankStatus(c *gin.Context) {
 	})
 }
 
+type ModelRankAddRequest struct {
+	Category string `json:"category"`
+	Model    string `json:"model"`
+}
+
+func AddModelToRank(c *gin.Context) {
+	var req ModelRankAddRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	if req.Category == "" || req.Model == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "category 和 model 不能为空",
+		})
+		return
+	}
+
+	ranker := relay.GetModelRanker()
+	ranker.AddModel(req.Category, req.Model, 0)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("模型 %s 已添加到分组 %s", req.Model, req.Category),
+	})
+}
+
+type ModelRankRemoveRequest struct {
+	Category string `json:"category"`
+	Model    string `json:"model"`
+}
+
+func RemoveModelFromRank(c *gin.Context) {
+	var req ModelRankRemoveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	if req.Category == "" || req.Model == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "category 和 model 不能为空",
+		})
+		return
+	}
+
+	ranker := relay.GetModelRanker()
+	ranker.RemoveModel(req.Category, req.Model)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("模型 %s 已从分组 %s 移除", req.Model, req.Category),
+	})
+}
+
 var (
 	modelRankHTML     []byte
 	modelRankHTMLOnce sync.Once

@@ -23,6 +23,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/status", controller.GetStatus)
 		apiRouter.GET("/model_rank/status", controller.GetModelRankStatus)
 		apiRouter.GET("/model_rank", controller.GetModelRankPage)
+		apiRouter.POST("/model_rank/add", controller.AddModelToRank)
+		apiRouter.POST("/model_rank/remove", controller.RemoveModelFromRank)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
