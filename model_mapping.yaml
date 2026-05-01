@@ -1,8 +1,8 @@
 enabled: true
 score_config:
-  initial_score: 100
+  initial_score: 40
   success_bonus: 10
-  failure_penalty: 5
+  failure_penalty: 20
 
 mappings:
   high_tier:
@@ -516,15 +516,15 @@ mappings:
     patterns:
       - "default"
     models:
-      - model: "meta/llama-3.1-70b-instruct"
+      - model: "qwen3.5-plus-free"
         weight: 20
-      - model: "meta/llama-3.1-8b-instruct"
+      - model: "spark-lite-free"
         weight: 20
-      - model: "mistralai/mistral-large-2-instruct"
+      - model: "Qwen3.5-2B-free"
         weight: 20
-      - model: "deepseek-ai/deepseek-v3.2"
+      - model: "doubao-seed-2.0-pro-free"
         weight: 20
-      - model: "google/gemma-3-27b-it"
+      - model: "inclusionAI: Ling-2.6-flash (free)"
         weight: 20
 
 intercept_endpoints:
