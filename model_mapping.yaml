@@ -513,7 +513,8 @@ mappings:
       - model: "zyphra/zamba2-7b-instruct"
         weight: 1.3
   default:
-    patterns: []
+    patterns:
+      - "default"
     models:
       - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
         weight: 20

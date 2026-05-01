@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -478,8 +477,19 @@ func ModelInterceptor() gin.HandlerFunc {
 			return
 		}
 
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(newBody))
+		// 创建新的 BodyStorage 并更新缓存
+		newStorage, err := common.CreateBodyStorage(newBody)
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
+			c.Next()
+			return
+		}
+
+		// 更新 c.Request.Body 和缓存
+		c.Request.Body = io.NopCloser(newStorage)
 		c.Request.ContentLength = int64(len(newBody))
+		c.Set(common.KeyBodyStorage, newStorage) // 关键：更新缓存！
+
 		c.Set("original_model", originalModel)
 		c.Set("mapped_model", newModel)
 		c.Set("model_category", category)
@@ -590,8 +600,18 @@ func PrepareNextModel(c *gin.Context) bool {
 		return false
 	}
 
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(newBody))
+	// 创建新的 BodyStorage 并更新缓存
+	newStorage, err := common.CreateBodyStorage(newBody)
+	if err != nil {
+		common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
+		return false
+	}
+
+	// 更新 c.Request.Body 和缓存
+	c.Request.Body = io.NopCloser(newStorage)
 	c.Request.ContentLength = int64(len(newBody))
+	c.Set(common.KeyBodyStorage, newStorage) // 关键：更新缓存！
+
 	c.Set("mapped_model", nextModel)
 
 	common.SysLog(fmt.Sprintf("[ModelInterceptor] 切换到下一个模型: %s (已尝试: %v)", nextModel, retryCtx.triedModels))
