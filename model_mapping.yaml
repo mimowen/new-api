@@ -516,15 +516,15 @@ mappings:
     patterns:
       - "default"
     models:
-      - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
+      - model: "meta/llama-3.1-70b-instruct"
         weight: 20
-      - model: "meta/llama-4-maverick-17b-128e-instruct"
+      - model: "meta/llama-3.1-8b-instruct"
         weight: 20
-      - model: "MiniMax/MiniMax-M1-80k"
+      - model: "mistralai/mistral-large-2-instruct"
         weight: 20
-      - model: "qwen3.5-plus-free"
+      - model: "deepseek-ai/deepseek-v3.2"
         weight: 20
-      - model: "spark-lite-free"
+      - model: "google/gemma-3-27b-it"
         weight: 20
 
 intercept_endpoints:
