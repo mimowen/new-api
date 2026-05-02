@@ -237,6 +237,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if relay.HasMoreModelsToTry(c) {
 			if relay.PrepareNextModel(c) {
+				retryParam.ResetRetryNextTry()
 				logger.LogInfo(c, "切换到下一个模型进行重试")
 				continue
 			}
