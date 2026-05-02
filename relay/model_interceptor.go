@@ -560,6 +560,7 @@ func ModelInterceptorHandler(handler gin.HandlerFunc) gin.HandlerFunc {
 					return
 				}
 				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				c.Writer = originalWriter
 				return
 			}
 
