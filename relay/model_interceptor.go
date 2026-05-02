@@ -1,15 +1,20 @@
 package relay
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
@@ -92,7 +97,7 @@ func (mr *ModelRanker) InitializeCategory(category string, models []ModelWeight,
 	rankedModels := make([]*RankedModel, 0, len(models))
 	for _, mw := range models {
 		if !enabledSet[strings.ToLower(mw.Model)] {
-			common.SysLog(fmt.Sprintf("[ModelRanker] 模型 %s 不在系统可用模型中，已从 %s 分组移除", mw.Model, category))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 不在系统可用模型中，已从 %s 分组移除", mw.Model, category))
 			continue
 		}
 		rankedModels = append(rankedModels, &RankedModel{
@@ -105,7 +110,7 @@ func (mr *ModelRanker) InitializeCategory(category string, models []ModelWeight,
 	}
 
 	mr.rankings[category] = rankedModels
-	common.SysLog(fmt.Sprintf("[ModelRanker] Initialized category %s with %d models (initial score: %.0f)", category, len(rankedModels), initialScore))
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Initialized category %s with %d models (initial score: %.0f)", category, len(rankedModels), initialScore))
 }
 
 func (mr *ModelRanker) GetNextModel(category string, excludeModels []string) string {
@@ -138,7 +143,7 @@ func getScoreConfig() ScoreConfig {
 	return ScoreConfig{}
 }
 
-func (mr *ModelRanker) RecordSuccess(category, model string) {
+func (mr *ModelRanker) RecordSuccess(category, modelName string) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
@@ -154,7 +159,7 @@ func (mr *ModelRanker) RecordSuccess(category, model string) {
 	}
 
 	for _, rm := range rankedModels {
-		if rm.Model == model {
+		if rm.Model == modelName {
 			rm.Successes++
 			rm.Score += successBonus
 			rm.LastUsed = time.Now()
@@ -163,10 +168,10 @@ func (mr *ModelRanker) RecordSuccess(category, model string) {
 	}
 
 	mr.sortRankings(category)
-	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded success for %s in category %s (bonus: %.0f)", model, category, successBonus))
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Recorded success for %s in category %s (bonus: %.0f)", modelName, category, successBonus))
 }
 
-func (mr *ModelRanker) RecordFailure(category, model string) {
+func (mr *ModelRanker) RecordFailure(category, modelName string) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
@@ -182,7 +187,7 @@ func (mr *ModelRanker) RecordFailure(category, model string) {
 	}
 
 	for _, rm := range rankedModels {
-		if rm.Model == model {
+		if rm.Model == modelName {
 			rm.Failures++
 			rm.Score -= failurePenalty
 			if rm.Score < 0 {
@@ -194,7 +199,7 @@ func (mr *ModelRanker) RecordFailure(category, model string) {
 	}
 
 	mr.sortRankings(category)
-	common.SysLog(fmt.Sprintf("[ModelRanker] Recorded failure for %s in category %s (penalty: %.0f)", model, category, failurePenalty))
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Recorded failure for %s in category %s (penalty: %.0f)", modelName, category, failurePenalty))
 }
 
 func (mr *ModelRanker) sortRankings(category string) {
@@ -227,13 +232,13 @@ func (mr *ModelRanker) AddModel(category, modelName string, initialScore float64
 				Failures:  0,
 			},
 		}
-		common.SysLog(fmt.Sprintf("[ModelRanker] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
+		common.SysLog(fmt.Sprintf("[ModelInterceptor] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
 		return
 	}
 
 	for _, rm := range rankedModels {
 		if rm.Model == modelName {
-			common.SysLog(fmt.Sprintf("[ModelRanker] Model %s already exists in category %s", modelName, category))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] Model %s already exists in category %s", modelName, category))
 			return
 		}
 	}
@@ -246,7 +251,7 @@ func (mr *ModelRanker) AddModel(category, modelName string, initialScore float64
 		Failures:  0,
 	})
 	mr.sortRankings(category)
-	common.SysLog(fmt.Sprintf("[ModelRanker] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Added model %s to category %s (score: %.0f)", modelName, category, initialScore))
 }
 
 func (mr *ModelRanker) RemoveModel(category, modelName string) {
@@ -261,7 +266,7 @@ func (mr *ModelRanker) RemoveModel(category, modelName string) {
 	for i, rm := range rankedModels {
 		if rm.Model == modelName {
 			mr.rankings[category] = append(rankedModels[:i], rankedModels[i+1:]...)
-			common.SysLog(fmt.Sprintf("[ModelRanker] Removed model %s from category %s", modelName, category))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] Removed model %s from category %s", modelName, category))
 			return
 		}
 	}
@@ -364,147 +369,6 @@ func getDefaultModelConfig() ModelMappingConfig {
 	}
 }
 
-type modelRetryContext struct {
-	category      string
-	originalModel string
-	triedModels   []string
-	body          []byte
-	intercepted   bool
-}
-
-const (
-	modelRetryContextKey = "model_retry_context"
-)
-
-func ModelInterceptor() gin.HandlerFunc {
-	config, _ := LoadModelConfig()
-	if !config.Enabled {
-		common.SysLog("[ModelInterceptor] 已禁用，跳过拦截")
-		return func(c *gin.Context) { c.Next() }
-	}
-
-	return func(c *gin.Context) {
-		shouldIntercept := false
-		for _, endpoint := range config.InterceptEndpoints {
-			if strings.HasPrefix(c.Request.URL.Path, endpoint) {
-				shouldIntercept = true
-				break
-			}
-		}
-
-		if !shouldIntercept {
-			c.Next()
-			return
-		}
-
-		storage, err := common.GetBodyStorage(c)
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
-			c.Next()
-			return
-		}
-
-		body, err := storage.Bytes()
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
-			c.Next()
-			return
-		}
-
-		var requestBody map[string]json.RawMessage
-		if err := common.Unmarshal(body, &requestBody); err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
-			c.Next()
-			return
-		}
-
-		var originalModel string
-		if modelRaw, ok := requestBody["model"]; ok {
-			if err := common.Unmarshal(modelRaw, &originalModel); err != nil {
-				c.Next()
-				return
-			}
-		}
-		if originalModel == "" {
-			c.Next()
-			return
-		}
-
-		category := DetermineCategory(originalModel, config)
-
-		if category == "" {
-			c.Set(modelRetryContextKey, &modelRetryContext{
-				originalModel: originalModel,
-				intercepted:   false,
-			})
-			c.Next()
-			return
-		}
-
-		var triedModels []string
-		if existingCtx, exists := c.Get(modelRetryContextKey); exists {
-			if retryCtx, ok := existingCtx.(*modelRetryContext); ok {
-				triedModels = retryCtx.triedModels
-			}
-		}
-
-		ranker := GetModelRanker()
-		newModel := ranker.GetNextModel(category, triedModels)
-
-		if newModel == "" {
-			c.Set(modelRetryContextKey, &modelRetryContext{
-				category:      category,
-				originalModel: originalModel,
-				intercepted:   false,
-			})
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始模型 %s", category, originalModel))
-			c.Next()
-			return
-		}
-
-		triedModels = append(triedModels, newModel)
-
-		retryCtx := &modelRetryContext{
-			category:      category,
-			originalModel: originalModel,
-			triedModels:   triedModels,
-			body:          body,
-			intercepted:   true,
-		}
-		c.Set(modelRetryContextKey, retryCtx)
-
-		common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s)", originalModel, newModel, category))
-
-		requestBody["model"], _ = common.Marshal(newModel)
-
-		newBody, err := common.Marshal(requestBody)
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
-			c.Next()
-			return
-		}
-
-		// 创建新的 BodyStorage 并更新缓存
-		newStorage, err := common.CreateBodyStorage(newBody)
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
-			c.Next()
-			return
-		}
-
-		// 更新 c.Request.Body 和缓存
-		c.Request.Body = io.NopCloser(newStorage)
-		c.Request.ContentLength = int64(len(newBody))
-		c.Set(common.KeyBodyStorage, newStorage) // 关键：更新缓存！
-
-		c.Set("original_model", originalModel)
-		c.Set("mapped_model", newModel)
-		c.Set("model_category", category)
-
-		c.Next()
-	}
-}
-
 func DetermineCategory(modelName string, config *ModelMappingConfig) string {
 	lowerModel := strings.ToLower(modelName)
 
@@ -519,109 +383,251 @@ func DetermineCategory(modelName string, config *ModelMappingConfig) string {
 	return ""
 }
 
-func RecordModelResult(c *gin.Context, success bool) {
-	existingCtx, exists := c.Get(modelRetryContextKey)
-	if !exists {
-		return
-	}
+type responseRecorder struct {
+	original   gin.ResponseWriter
+	statusCode int
+	body       bytes.Buffer
+	header     http.Header
+	size       int
+	written    bool
+}
 
-	retryCtx, ok := existingCtx.(*modelRetryContext)
-	if !ok {
-		return
-	}
-
-	if !retryCtx.intercepted {
-		return
-	}
-
-	category := retryCtx.category
-	model := c.GetString("mapped_model")
-
-	if category == "" || model == "" {
-		return
-	}
-
-	ranker := GetModelRanker()
-	if success {
-		ranker.RecordSuccess(category, model)
-	} else {
-		ranker.RecordFailure(category, model)
+func newResponseRecorder(original gin.ResponseWriter) *responseRecorder {
+	return &responseRecorder{
+		original:   original,
+		statusCode: 200,
+		header:     make(http.Header),
 	}
 }
 
-func HasMoreModelsToTry(c *gin.Context) bool {
-	existingCtx, exists := c.Get(modelRetryContextKey)
-	if !exists {
-		return false
-	}
-
-	retryCtx, ok := existingCtx.(*modelRetryContext)
-	if !ok {
-		return false
-	}
-
-	if !retryCtx.intercepted {
-		return false
-	}
-
-	ranker := GetModelRanker()
-	count := ranker.GetCategoryModelCount(retryCtx.category)
-
-	return len(retryCtx.triedModels) < count
+func (r *responseRecorder) Header() http.Header {
+	return r.header
 }
 
-func PrepareNextModel(c *gin.Context) bool {
-	existingCtx, exists := c.Get(modelRetryContextKey)
-	if !exists {
-		return false
+func (r *responseRecorder) Write(data []byte) (int, error) {
+	if !r.written {
+		r.written = true
+	}
+	r.size += len(data)
+	return r.body.Write(data)
+}
+
+func (r *responseRecorder) WriteHeader(code int) {
+	r.statusCode = code
+}
+
+func (r *responseRecorder) Status() int {
+	return r.statusCode
+}
+
+func (r *responseRecorder) Size() int {
+	return r.size
+}
+
+func (r *responseRecorder) Written() bool {
+	return r.written
+}
+
+func (r *responseRecorder) WriteString(s string) (int, error) {
+	return r.Write([]byte(s))
+}
+
+func (r *responseRecorder) WriteHeaderNow() {}
+
+func (r *responseRecorder) Flush() {}
+
+func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return r.original.Hijack()
+}
+
+func (r *responseRecorder) CloseNotify() <-chan bool {
+	return r.original.CloseNotify()
+}
+
+func (r *responseRecorder) Pusher() http.Pusher {
+	if pusher, ok := r.original.(http.Pusher); ok {
+		return pusher
+	}
+	return nil
+}
+
+func (r *responseRecorder) FlushToOriginal() {
+	for k, v := range r.header {
+		r.original.Header()[k] = v
+	}
+	r.original.WriteHeader(r.statusCode)
+	r.original.Write(r.body.Bytes())
+}
+
+func shouldInterceptRequest(path string, config *ModelMappingConfig) bool {
+	for _, endpoint := range config.InterceptEndpoints {
+		if strings.HasPrefix(path, endpoint) {
+			return true
+		}
+	}
+	return false
+}
+
+func clearChannelContext(c *gin.Context) {
+	channelKeys := []string{
+		string(constant.ContextKeyChannelId),
+		string(constant.ContextKeyChannelName),
+		string(constant.ContextKeyChannelCreateTime),
+		string(constant.ContextKeyChannelBaseUrl),
+		string(constant.ContextKeyChannelType),
+		string(constant.ContextKeyChannelSetting),
+		string(constant.ContextKeyChannelOtherSetting),
+		string(constant.ContextKeyChannelParamOverride),
+		string(constant.ContextKeyChannelHeaderOverride),
+		string(constant.ContextKeyChannelOrganization),
+		string(constant.ContextKeyChannelAutoBan),
+		string(constant.ContextKeyChannelModelMapping),
+		string(constant.ContextKeyChannelStatusCodeMapping),
+		string(constant.ContextKeyChannelIsMultiKey),
+		string(constant.ContextKeyChannelMultiKeyIndex),
+		string(constant.ContextKeyChannelKey),
+		string(constant.ContextKeyOriginalModel),
+		"api_version",
+		"region",
+	}
+	for _, key := range channelKeys {
+		c.Set(key, nil)
+	}
+}
+
+func ModelInterceptorHandler(handler gin.HandlerFunc) gin.HandlerFunc {
+	config, _ := LoadModelConfig()
+	if !config.Enabled {
+		return handler
 	}
 
-	retryCtx, ok := existingCtx.(*modelRetryContext)
-	if !ok {
-		return false
+	return func(c *gin.Context) {
+		if !shouldInterceptRequest(c.Request.URL.Path, config) {
+			handler(c)
+			return
+		}
+
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
+			handler(c)
+			return
+		}
+
+		body, err := storage.Bytes()
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
+			handler(c)
+			return
+		}
+
+		var requestBody map[string]json.RawMessage
+		if err := common.Unmarshal(body, &requestBody); err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
+			handler(c)
+			return
+		}
+
+		var originalModel string
+		if modelRaw, ok := requestBody["model"]; ok {
+			if err := common.Unmarshal(modelRaw, &originalModel); err != nil {
+				handler(c)
+				return
+			}
+		}
+		if originalModel == "" {
+			handler(c)
+			return
+		}
+
+		category := DetermineCategory(originalModel, config)
+		if category == "" {
+			handler(c)
+			return
+		}
+
+		ranker := GetModelRanker()
+		triedModels := []string{}
+		originalWriter := c.Writer
+
+		for {
+			newModel := ranker.GetNextModel(category, triedModels)
+			if newModel == "" {
+				if len(triedModels) == 0 {
+					common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始请求", category))
+					c.Writer = originalWriter
+					handler(c)
+					return
+				}
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				return
+			}
+
+			triedModels = append(triedModels, newModel)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s, 尝试: %d/%d)", originalModel, newModel, category, len(triedModels), ranker.GetCategoryModelCount(category)))
+
+			parsedBody := make(map[string]json.RawMessage)
+			if err := common.Unmarshal(body, &parsedBody); err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
+				c.Writer = originalWriter
+				handler(c)
+				return
+			}
+
+			parsedBody["model"], _ = common.Marshal(newModel)
+			newBody, err := common.Marshal(parsedBody)
+			if err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
+				c.Writer = originalWriter
+				handler(c)
+				return
+			}
+
+			newStorage, err := common.CreateBodyStorage(newBody)
+			if err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
+				c.Writer = originalWriter
+				handler(c)
+				return
+			}
+
+			c.Request.Body = io.NopCloser(newStorage)
+			c.Request.ContentLength = int64(len(newBody))
+			c.Set(common.KeyBodyStorage, newStorage)
+			c.Set("original_model", originalModel)
+			c.Set("mapped_model", newModel)
+			c.Set("model_category", category)
+
+			if len(triedModels) > 1 {
+				clearChannelContext(c)
+			}
+
+			rec := newResponseRecorder(originalWriter)
+			c.Writer = rec
+
+			handler(c)
+
+			if rec.Status() < 400 {
+				rec.FlushToOriginal()
+				ranker.RecordSuccess(category, newModel)
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求成功", newModel))
+				return
+			}
+
+			ranker.RecordFailure(category, newModel)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d)，尝试下一个模型", newModel, rec.Status()))
+
+			c.Writer = originalWriter
+
+			if len(triedModels) >= ranker.GetCategoryModelCount(category) {
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				lastRec := newResponseRecorder(originalWriter)
+				lastRec.header = rec.header
+				lastRec.statusCode = rec.statusCode
+				lastRec.body = rec.body
+				lastRec.FlushToOriginal()
+				return
+			}
+		}
 	}
-
-	if !retryCtx.intercepted {
-		return false
-	}
-
-	ranker := GetModelRanker()
-	nextModel := ranker.GetNextModel(retryCtx.category, retryCtx.triedModels)
-	if nextModel == "" {
-		return false
-	}
-
-	retryCtx.triedModels = append(retryCtx.triedModels, nextModel)
-	c.Set(modelRetryContextKey, retryCtx)
-
-	var requestBody map[string]json.RawMessage
-	if err := common.Unmarshal(retryCtx.body, &requestBody); err != nil {
-		common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
-		return false
-	}
-
-	requestBody["model"], _ = common.Marshal(nextModel)
-	newBody, err := common.Marshal(requestBody)
-	if err != nil {
-		common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
-		return false
-	}
-
-	// 创建新的 BodyStorage 并更新缓存
-	newStorage, err := common.CreateBodyStorage(newBody)
-	if err != nil {
-		common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
-		return false
-	}
-
-	// 更新 c.Request.Body 和缓存
-	c.Request.Body = io.NopCloser(newStorage)
-	c.Request.ContentLength = int64(len(newBody))
-	c.Set(common.KeyBodyStorage, newStorage) // 关键：更新缓存！
-
-	c.Set("mapped_model", nextModel)
-
-	common.SysLog(fmt.Sprintf("[ModelInterceptor] 切换到下一个模型: %s (已尝试: %v)", nextModel, retryCtx.triedModels))
-
-	return true
 }

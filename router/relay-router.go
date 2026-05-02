@@ -11,13 +11,9 @@ import (
 )
 
 func SetRelayRouter(router *gin.Engine) {
-	// 设置模型拦截器为第一个全局中间件
-	router.Use(relay.ModelInterceptor())
-	
-	// 其他全局中间件
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
-	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
+	router.Use(middleware.BodyStorageCleanup())
 	router.Use(middleware.StatsMiddleware())
 	
 	// https://platform.openai.com/docs/api-reference/introduction
@@ -90,25 +86,25 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
-		httpRouter.POST("/messages", func(c *gin.Context) {
+		httpRouter.POST("/messages", relay.ModelInterceptorHandler(func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
-		})
+		}))
 
 		// chat related routes
-		httpRouter.POST("/completions", func(c *gin.Context) {
+		httpRouter.POST("/completions", relay.ModelInterceptorHandler(func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
-		})
-		httpRouter.POST("/chat/completions", func(c *gin.Context) {
+		}))
+		httpRouter.POST("/chat/completions", relay.ModelInterceptorHandler(func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
-		})
+		}))
 
 		// response related routes
-		httpRouter.POST("/responses", func(c *gin.Context) {
+		httpRouter.POST("/responses", relay.ModelInterceptorHandler(func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponses)
-		})
-		httpRouter.POST("/responses/compact", func(c *gin.Context) {
+		}))
+		httpRouter.POST("/responses/compact", relay.ModelInterceptorHandler(func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
-		})
+		}))
 
 		// image related routes
 		httpRouter.POST("/edits", func(c *gin.Context) {

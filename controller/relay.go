@@ -6,9 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -194,7 +192,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
-			relay.RecordModelResult(c, false)
 			break
 		}
 
@@ -207,7 +204,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
-			relay.RecordModelResult(c, false)
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
@@ -224,24 +220,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
-			relay.RecordModelResult(c, true)
 			relayInfo.LastError = nil
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
-		relay.RecordModelResult(c, false)
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
-
-		if relay.HasMoreModelsToTry(c) {
-			if relay.PrepareNextModel(c) {
-				retryParam.ResetRetryNextTry()
-				logger.LogInfo(c, "切换到下一个模型进行重试")
-				continue
-			}
-		}
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
@@ -658,104 +644,4 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return false
 	}
 	return true
-}
-
-func GetModelRankStatus(c *gin.Context) {
-	ranker := relay.GetModelRanker()
-	status := ranker.GetRankStatus()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "获取模型排名状态成功",
-		"data":    status,
-	})
-}
-
-type ModelRankAddRequest struct {
-	Category string `json:"category"`
-	Model    string `json:"model"`
-}
-
-func AddModelToRank(c *gin.Context) {
-	var req ModelRankAddRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "请求参数错误",
-		})
-		return
-	}
-
-	if req.Category == "" || req.Model == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "category 和 model 不能为空",
-		})
-		return
-	}
-
-	ranker := relay.GetModelRanker()
-	ranker.AddModel(req.Category, req.Model, 0)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": fmt.Sprintf("模型 %s 已添加到分组 %s", req.Model, req.Category),
-	})
-}
-
-type ModelRankRemoveRequest struct {
-	Category string `json:"category"`
-	Model    string `json:"model"`
-}
-
-func RemoveModelFromRank(c *gin.Context) {
-	var req ModelRankRemoveRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "请求参数错误",
-		})
-		return
-	}
-
-	if req.Category == "" || req.Model == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "category 和 model 不能为空",
-		})
-		return
-	}
-
-	ranker := relay.GetModelRanker()
-	ranker.RemoveModel(req.Category, req.Model)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": fmt.Sprintf("模型 %s 已从分组 %s 移除", req.Model, req.Category),
-	})
-}
-
-var (
-	modelRankHTML     []byte
-	modelRankHTMLOnce sync.Once
-)
-
-func loadModelRankHTML() []byte {
-	modelRankHTMLOnce.Do(func() {
-		paths := []string{"model_rank.html", "/data/model_rank.html"}
-		for _, p := range paths {
-			data, err := os.ReadFile(p)
-			if err == nil {
-				modelRankHTML = data
-				return
-			}
-		}
-		modelRankHTML = []byte("<html><body><h1>model_rank.html not found</h1></body></html>")
-	})
-	return modelRankHTML
-}
-
-func GetModelRankPage(c *gin.Context) {
-	html := loadModelRankHTML()
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.Data(http.StatusOK, "text/html; charset=utf-8", html)
 }

@@ -1,0 +1,19 @@
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: new-api-local
+    restart: always
+    command: --log-dir /data/logs
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - SQL_DSN=
+      - REDIS_CONN_STRING=
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-local
