@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -410,15 +411,21 @@ func ModelInterceptor() gin.HandlerFunc {
 			return
 		}
 
-		var requestBody map[string]interface{}
+		var requestBody map[string]json.RawMessage
 		if err := common.Unmarshal(body, &requestBody); err != nil {
 			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
 			c.Next()
 			return
 		}
 
-		originalModel, ok := requestBody["model"].(string)
-		if !ok || originalModel == "" {
+		var originalModel string
+		if modelRaw, ok := requestBody["model"]; ok {
+			if err := common.Unmarshal(modelRaw, &originalModel); err != nil {
+				c.Next()
+				return
+			}
+		}
+		if originalModel == "" {
 			c.Next()
 			return
 		}
@@ -468,7 +475,7 @@ func ModelInterceptor() gin.HandlerFunc {
 
 		common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s)", originalModel, newModel, category))
 
-		requestBody["model"] = newModel
+		requestBody["model"], _ = common.Marshal(newModel)
 
 		newBody, err := common.Marshal(requestBody)
 		if err != nil {
@@ -587,13 +594,13 @@ func PrepareNextModel(c *gin.Context) bool {
 	retryCtx.triedModels = append(retryCtx.triedModels, nextModel)
 	c.Set(modelRetryContextKey, retryCtx)
 
-	var requestBody map[string]interface{}
+	var requestBody map[string]json.RawMessage
 	if err := common.Unmarshal(retryCtx.body, &requestBody); err != nil {
 		common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
 		return false
 	}
 
-	requestBody["model"] = nextModel
+	requestBody["model"], _ = common.Marshal(nextModel)
 	newBody, err := common.Marshal(requestBody)
 	if err != nil {
 		common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))

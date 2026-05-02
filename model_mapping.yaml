@@ -6,7 +6,7 @@ score_config:
 
 mappings:
   high_tier:
-    patterns: []
+    patterns: ["high_tier"]
     models:
       - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
         weight: 0.8
@@ -513,18 +513,17 @@ mappings:
       - model: "zyphra/zamba2-7b-instruct"
         weight: 1.3
   default:
-    patterns:
-      - "default"
+    patterns: ["default"]
     models:
+      - model: "meta/llama-4-maverick-17b-128e-instruct"
+        weight: 20
+      - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
+        weight: 20
+      - model: "MiniMax/MiniMax-M1-80k"
+        weight: 20
       - model: "qwen3.5-plus-free"
         weight: 20
       - model: "spark-lite-free"
-        weight: 20
-      - model: "Qwen3.5-2B-free"
-        weight: 20
-      - model: "doubao-seed-2.0-pro-free"
-        weight: 20
-      - model: "inclusionAI: Ling-2.6-flash (free)"
         weight: 20
 
 intercept_endpoints:
