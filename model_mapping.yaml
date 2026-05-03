@@ -515,8 +515,6 @@ mappings:
   default:
     patterns: ["default"]
     models:
-      - model: "LLM-Research/Llama-4-Maverick-17B-128E-Instruct"
-        weight: 20
       - model: "meta/llama-4-maverick-17b-128e-instruct"
         weight: 20
       - model: "MiniMax/MiniMax-M1-80k"

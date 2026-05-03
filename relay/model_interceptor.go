@@ -390,6 +390,7 @@ type responseRecorder struct {
 	header     http.Header
 	size       int
 	written    bool
+	flushed    bool
 }
 
 func newResponseRecorder(original gin.ResponseWriter) *responseRecorder {
@@ -434,7 +435,9 @@ func (r *responseRecorder) WriteString(s string) (int, error) {
 
 func (r *responseRecorder) WriteHeaderNow() {}
 
-func (r *responseRecorder) Flush() {}
+func (r *responseRecorder) Flush() {
+	r.flushed = true
+}
 
 func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return r.original.Hijack()
@@ -456,7 +459,12 @@ func (r *responseRecorder) FlushToOriginal() {
 		r.original.Header()[k] = v
 	}
 	r.original.WriteHeader(r.statusCode)
-	r.original.Write(r.body.Bytes())
+	bodyBytes := r.body.Bytes()
+	n, err := r.original.Write(bodyBytes)
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] FlushToOriginal: wrote %d bytes, error: %v", n, err))
+	if r.flushed {
+		r.original.Flush()
+	}
 }
 
 func shouldInterceptRequest(path string, config *ModelMappingConfig) bool {
@@ -600,6 +608,7 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			c.Set("original_model", originalModel)
 			c.Set("mapped_model", newModel)
 			c.Set("model_category", category)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] Set mapped_model=%s, bodyLen=%d", newModel, len(newBody)))
 
 			if len(triedModels) > 1 {
 				clearChannelContext(c)
@@ -611,6 +620,7 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			c.Next()
 
 			if rec.Status() < 400 {
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] Success: status=%d, bodyLen=%d", rec.statusCode, rec.body.Len()))
 				rec.FlushToOriginal()
 				ranker.RecordSuccess(category, newModel)
 				common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求成功", newModel))
