@@ -116,6 +116,69 @@ try {
     Write-TestResult "Test 7" $false "API failed: $($_.Exception.Message)"
 }
 
+Write-Host "`n=== Test 8: Stream response with 'default' model ===" -ForegroundColor Yellow
+$body = @{
+    model = "default"
+    messages = @(@{ role = "user"; content = "Say hello" })
+    stream = $true
+} | ConvertTo-Json -Depth 3
+
+try {
+    $response = Invoke-WebRequest -Uri "$baseUrl/v1/chat/completions" -Method Post -Body $body -Headers $headers -UseBasicParsing
+    $content = $response.Content
+    $hasStreamData = $content -match "data:" -and $content -match "\[DONE\]"
+    $hasModelReplace = $content -match "meta/llama-4-maverick-17b-128e-instruct" -or $content -match "MiniMax" -or $content -match "qwen"
+    $notDefault = $content -notmatch '"model":"default"'
+    $success = $hasStreamData -and $hasModelReplace -and $notDefault
+    Write-TestResult "Test 8" $success "Stream response contains model replacement, length: $($content.Length) bytes"
+} catch {
+    Write-TestResult "Test 8" $false "Request failed: $($_.Exception.Message)"
+}
+
+Write-Host "`n=== Test 9: Non-existent model with stream returns error (not empty response) ===" -ForegroundColor Yellow
+$fakeModel = "non-existent-model-xyz-12345"
+$body = @{
+    model = $fakeModel
+    messages = @(@{ role = "user"; content = "Hello" })
+    stream = $true
+} | ConvertTo-Json -Depth 3
+
+try {
+    $response = Invoke-WebRequest -Uri "$baseUrl/v1/chat/completions" -Method Post -Body $body -Headers $headers -UseBasicParsing
+    $content = $response.Content
+    $hasError = $content -match "error" -or $content -match "No available channel"
+    $notEmpty = $content.Length -gt 0
+    $success = $hasError -and $notEmpty
+    if ($success) {
+        Write-TestResult "Test 9" $true "Got error response (not empty), length: $($content.Length) bytes"
+    } else {
+        Write-TestResult "Test 9" $false "Response: $($content.Substring(0, [Math]::Min(100, $content.Length)))"
+    }
+} catch {
+    $errorMsg = $_.Exception.Message
+    $hasStatusCode = $errorMsg -match "503" -or $errorMsg -match "500"
+    Write-TestResult "Test 9" $hasStatusCode "Got expected HTTP error: $errorMsg"
+}
+
+Write-Host "`n=== Test 10: Stream response has valid SSE format ===" -ForegroundColor Yellow
+$body = @{
+    model = "default"
+    messages = @(@{ role = "user"; content = "Hi" })
+    stream = $true
+} | ConvertTo-Json -Depth 3
+
+try {
+    $response = Invoke-WebRequest -Uri "$baseUrl/v1/chat/completions" -Method Post -Body $body -Headers $headers -UseBasicParsing
+    $content = $response.Content
+    $hasContentType = $response.Headers."Content-Type" -match "text/event-stream" -or $response.Headers."Content-Type" -match "application/json"
+    $hasDone = $content -match "\[DONE\]"
+    $hasData = $content -match "data:"
+    $success = $hasData -and $hasDone
+    Write-TestResult "Test 10" $success "SSE format valid: data chunks present, [DONE] present, Content-Type: $($response.Headers.'Content-Type')"
+} catch {
+    Write-TestResult "Test 10" $false "Request failed: $($_.Exception.Message)"
+}
+
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "   Test Complete" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan

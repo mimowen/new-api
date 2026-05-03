@@ -455,13 +455,17 @@ func (r *responseRecorder) Pusher() http.Pusher {
 }
 
 func (r *responseRecorder) FlushToOriginal() {
+	if r.original == nil {
+		common.SysError("[ModelInterceptor] FlushToOriginal: original writer is nil")
+		return
+	}
 	for k, v := range r.header {
 		r.original.Header()[k] = v
 	}
 	r.original.WriteHeader(r.statusCode)
 	bodyBytes := r.body.Bytes()
 	n, err := r.original.Write(bodyBytes)
-	common.SysLog(fmt.Sprintf("[ModelInterceptor] FlushToOriginal: wrote %d bytes, error: %v", n, err))
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] FlushToOriginal: statusCode=%d, wrote %d bytes (bodyLen=%d), error: %v", r.statusCode, n, len(bodyBytes), err))
 	if r.flushed {
 		r.original.Flush()
 	}
@@ -499,8 +503,9 @@ func clearChannelContext(c *gin.Context) {
 		"region",
 	}
 	for _, key := range channelKeys {
-		c.Set(key, nil)
+		delete(c.Keys, key)
 	}
+	delete(c.Keys, "event_stream_headers_set")
 }
 
 func ModelInterceptorMiddleware() gin.HandlerFunc {
@@ -559,6 +564,7 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 		ranker := GetModelRanker()
 		triedModels := []string{}
 		originalWriter := c.Writer
+		var lastFailedRec *responseRecorder
 
 		for {
 			newModel := ranker.GetNextModel(category, triedModels)
@@ -569,8 +575,11 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 					c.Next()
 					return
 				}
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误 (bodyLen=%d)", category, lastFailedRec.body.Len()))
 				c.Writer = originalWriter
+				if lastFailedRec != nil {
+					lastFailedRec.FlushToOriginal()
+				}
 				return
 			}
 
@@ -628,17 +637,14 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			}
 
 			ranker.RecordFailure(category, newModel)
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d)，尝试下一个模型", newModel, rec.Status()))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d, bodyLen=%d)，尝试下一个模型", newModel, rec.Status(), rec.body.Len()))
 
+			lastFailedRec = rec
 			c.Writer = originalWriter
 
 			if len(triedModels) >= ranker.GetCategoryModelCount(category) {
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
-				lastRec := newResponseRecorder(originalWriter)
-				lastRec.header = rec.header
-				lastRec.statusCode = rec.statusCode
-				lastRec.body = rec.body
-				lastRec.FlushToOriginal()
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误 (bodyLen=%d)", category, lastFailedRec.body.Len()))
+				lastFailedRec.FlushToOriginal()
 				return
 			}
 		}
