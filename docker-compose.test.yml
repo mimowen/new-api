@@ -1,0 +1,32 @@
+# New-API Docker Compose Configuration for Testing with SQLite
+# 
+# Quick Start:
+#   1. docker-compose -f docker-compose.test.yml build
+#   2. docker-compose -f docker-compose.test.yml up -d
+#   3. Access at http://localhost:3000
+#
+
+version: '3.4'
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.custom.proxy
+    container_name: new-api-test
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+      - ./model_mapping.yaml:/data/model_mapping.yaml:ro
+    environment:
+      - SQLITE_PATH=/data/one-api.db
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-test-node
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
