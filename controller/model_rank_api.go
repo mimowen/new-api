@@ -1,11 +1,15 @@
 package controller
 
 import (
+	"embed"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed model_rank.html
+var modelRankHTML embed.FS
 
 func GetModelRankStatus(c *gin.Context) {
 	ranker := relay.GetModelRanker()
@@ -60,5 +64,10 @@ func RemoveModelFromRank(c *gin.Context) {
 }
 
 func GetModelRankPage(c *gin.Context) {
-	c.HTML(http.StatusOK, "", nil)
+	data, err := modelRankHTML.ReadFile("model_rank.html")
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to load page")
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 }
