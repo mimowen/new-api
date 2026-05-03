@@ -83,28 +83,29 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		//http router
 		httpRouter := relayV1Router.Group("")
+		httpRouter.Use(relay.ModelInterceptorMiddleware())
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
-		httpRouter.POST("/messages", relay.ModelInterceptorHandler(func(c *gin.Context) {
+		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
-		}))
+		})
 
 		// chat related routes
-		httpRouter.POST("/completions", relay.ModelInterceptorHandler(func(c *gin.Context) {
+		httpRouter.POST("/completions", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
-		}))
-		httpRouter.POST("/chat/completions", relay.ModelInterceptorHandler(func(c *gin.Context) {
+		})
+		httpRouter.POST("/chat/completions", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
-		}))
+		})
 
 		// response related routes
-		httpRouter.POST("/responses", relay.ModelInterceptorHandler(func(c *gin.Context) {
+		httpRouter.POST("/responses", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponses)
-		}))
-		httpRouter.POST("/responses/compact", relay.ModelInterceptorHandler(func(c *gin.Context) {
+		})
+		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
-		}))
+		})
 
 		// image related routes
 		httpRouter.POST("/edits", func(c *gin.Context) {

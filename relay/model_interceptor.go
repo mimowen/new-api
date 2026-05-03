@@ -495,6 +495,147 @@ func clearChannelContext(c *gin.Context) {
 	}
 }
 
+func ModelInterceptorMiddleware() gin.HandlerFunc {
+	config, _ := LoadModelConfig()
+	if !config.Enabled {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	return func(c *gin.Context) {
+		if !shouldInterceptRequest(c.Request.URL.Path, config) {
+			c.Next()
+			return
+		}
+
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
+			c.Next()
+			return
+		}
+
+		body, err := storage.Bytes()
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
+			c.Next()
+			return
+		}
+
+		var requestBody map[string]json.RawMessage
+		if err := common.Unmarshal(body, &requestBody); err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
+			c.Next()
+			return
+		}
+
+		var originalModel string
+		if modelRaw, ok := requestBody["model"]; ok {
+			if err := common.Unmarshal(modelRaw, &originalModel); err != nil {
+				c.Next()
+				return
+			}
+		}
+		if originalModel == "" {
+			c.Next()
+			return
+		}
+
+		category := DetermineCategory(originalModel, config)
+		if category == "" {
+			c.Next()
+			return
+		}
+
+		ranker := GetModelRanker()
+		triedModels := []string{}
+		originalWriter := c.Writer
+
+		for {
+			newModel := ranker.GetNextModel(category, triedModels)
+			if newModel == "" {
+				if len(triedModels) == 0 {
+					common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始请求", category))
+					c.Writer = originalWriter
+					c.Next()
+					return
+				}
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				c.Writer = originalWriter
+				return
+			}
+
+			triedModels = append(triedModels, newModel)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s, 尝试: %d/%d)", originalModel, newModel, category, len(triedModels), ranker.GetCategoryModelCount(category)))
+
+			parsedBody := make(map[string]json.RawMessage)
+			if err := common.Unmarshal(body, &parsedBody); err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
+				c.Writer = originalWriter
+				c.Next()
+				return
+			}
+
+			parsedBody["model"], _ = common.Marshal(newModel)
+			newBody, err := common.Marshal(parsedBody)
+			if err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
+				c.Writer = originalWriter
+				c.Next()
+				return
+			}
+
+			newStorage, err := common.CreateBodyStorage(newBody)
+			if err != nil {
+				common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
+				c.Writer = originalWriter
+				c.Next()
+				return
+			}
+
+			c.Request.Body = io.NopCloser(newStorage)
+			c.Request.ContentLength = int64(len(newBody))
+			c.Set(common.KeyBodyStorage, newStorage)
+			c.Set("original_model", originalModel)
+			c.Set("mapped_model", newModel)
+			c.Set("model_category", category)
+
+			if len(triedModels) > 1 {
+				clearChannelContext(c)
+			}
+
+			rec := newResponseRecorder(originalWriter)
+			c.Writer = rec
+
+			c.Next()
+
+			if rec.Status() < 400 {
+				rec.FlushToOriginal()
+				ranker.RecordSuccess(category, newModel)
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求成功", newModel))
+				return
+			}
+
+			ranker.RecordFailure(category, newModel)
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d)，尝试下一个模型", newModel, rec.Status()))
+
+			c.Writer = originalWriter
+
+			if len(triedModels) >= ranker.GetCategoryModelCount(category) {
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
+				lastRec := newResponseRecorder(originalWriter)
+				lastRec.header = rec.header
+				lastRec.statusCode = rec.statusCode
+				lastRec.body = rec.body
+				lastRec.FlushToOriginal()
+				return
+			}
+		}
+	}
+}
+
+// ModelInterceptorHandler is deprecated, use ModelInterceptorMiddleware instead
 func ModelInterceptorHandler(handler gin.HandlerFunc) gin.HandlerFunc {
 	config, _ := LoadModelConfig()
 	if !config.Enabled {
