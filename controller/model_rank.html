@@ -1,849 +1,291 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>模型排名实时监控</title>
-    <style>
-        :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-card: #1e293b;
-            --bg-card-hover: #263348;
-            --border-color: #334155;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --accent-blue: #3b82f6;
-            --accent-purple: #8b5cf6;
-            --accent-green: #22c55e;
-            --accent-red: #ef4444;
-            --accent-amber: #f59e0b;
-            --accent-cyan: #06b6d4;
-            --gradient-start: #3b82f6;
-            --gradient-end: #8b5cf6;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
-
-        .layout {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        .sidebar {
-            width: 260px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border-color);
-            padding: 24px 16px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            overflow-y: auto;
-        }
-
-        .sidebar-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 20px;
-        }
-
-        .sidebar-logo .icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-        }
-
-        .sidebar-logo span {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .sidebar-section-title {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-            padding: 12px 12px 8px;
-        }
-
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        .sidebar-item:hover {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
-        .sidebar-item.active {
-            background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15));
-            color: var(--accent-blue);
-            border: 1px solid rgba(59,130,246,0.3);
-        }
-
-        .sidebar-item .badge {
-            margin-left: auto;
-            background: var(--accent-blue);
-            color: #fff;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-weight: 600;
-        }
-
-        .main-content {
-            margin-left: 260px;
-            flex: 1;
-            padding: 32px 40px;
-        }
-
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 32px;
-        }
-
-        .header-left h1 {
-            font-size: 28px;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .header-left p {
-            color: var(--text-muted);
-            font-size: 14px;
-            margin-top: 4px;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            color: #fff;
-        }
-
-        .btn-primary:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-            background: var(--bg-card);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 32px;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.2s;
-        }
-
-        .stat-card:hover {
-            border-color: var(--accent-blue);
-            box-shadow: 0 0 20px rgba(59,130,246,0.1);
-        }
-
-        .stat-card .label {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .stat-card .value {
-            font-size: 32px;
-            font-weight: 700;
-        }
-
-        .stat-card .sub {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        .stat-card .value.green { color: var(--accent-green); }
-        .stat-card .value.red { color: var(--accent-red); }
-        .stat-card .value.blue { color: var(--accent-blue); }
-        .stat-card .value.purple { color: var(--accent-purple); }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
-        .category-panel {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .category-panel-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .category-panel-header .title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .category-panel-header .title .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-green);
-        }
-
-        .category-panel-header .meta {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .model-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .model-table thead th {
-            padding: 10px 20px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            background: rgba(0,0,0,0.2);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .model-table tbody tr {
-            border-bottom: 1px solid var(--border-color);
-            transition: background 0.15s;
-        }
-
-        .model-table tbody tr:last-child {
-            border-bottom: none;
-        }
-
-        .model-table tbody tr:hover {
-            background: var(--bg-card-hover);
-        }
-
-        .model-table td {
-            padding: 12px 20px;
-            font-size: 14px;
-        }
-
-        .rank-cell {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .rank-badge {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 13px;
-        }
-
-        .rank-1 {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: #78350f;
-        }
-
-        .rank-2 {
-            background: linear-gradient(135deg, #9ca3af, #6b7280);
-            color: #fff;
-        }
-
-        .rank-3 {
-            background: linear-gradient(135deg, #d97706, #b45309);
-            color: #fff;
-        }
-
-        .rank-other {
-            background: var(--bg-secondary);
-            color: var(--text-muted);
-            border: 1px solid var(--border-color);
-        }
-
-        .model-name {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .score-bar-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .score-bar {
-            flex: 1;
-            height: 6px;
-            background: var(--bg-secondary);
-            border-radius: 3px;
-            overflow: hidden;
-            min-width: 80px;
-        }
-
-        .score-bar-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.5s ease;
-        }
-
-        .score-bar-fill.high {
-            background: linear-gradient(90deg, var(--accent-green), #4ade80);
-        }
-
-        .score-bar-fill.medium {
-            background: linear-gradient(90deg, var(--accent-amber), #fbbf24);
-        }
-
-        .score-bar-fill.low {
-            background: linear-gradient(90deg, var(--accent-red), #f87171);
-        }
-
-        .score-value {
-            font-weight: 600;
-            font-size: 14px;
-            min-width: 40px;
-            text-align: right;
-        }
-
-        .score-value.high { color: var(--accent-green); }
-        .score-value.medium { color: var(--accent-amber); }
-        .score-value.low { color: var(--accent-red); }
-
-        .stat-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .stat-pill.success {
-            background: rgba(34,197,94,0.1);
-            color: var(--accent-green);
-        }
-
-        .stat-pill.failure {
-            background: rgba(239,68,68,0.1);
-            color: var(--accent-red);
-        }
-
-        .success-rate {
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .success-rate.good { color: var(--accent-green); }
-        .success-rate.warn { color: var(--accent-amber); }
-        .success-rate.bad { color: var(--accent-red); }
-
-        .empty-state {
-            padding: 40px;
-            text-align: center;
-            color: var(--text-muted);
-        }
-
-        .empty-state .icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-
-        .footer-bar {
-            margin-top: 32px;
-            padding: 16px 0;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-
-        .auto-refresh-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 260px;
-            right: 0;
-            bottom: 0;
-            background: rgba(15,23,42,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-blue);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .config-info {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 24px;
-        }
-
-        .config-info h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-        }
-
-        .config-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-        }
-
-        .config-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .config-item .config-label {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .config-item .config-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--accent-cyan);
-        }
-
-        .category-panel.full-width {
-            grid-column: 1 / -1;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Model Interceptor Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding:16px 24px;background:#1e293b;border-radius:12px;border:1px solid #334155}
+.header h1{font-size:22px;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-actions{display:flex;gap:12px;align-items:center}
+.mode-switch{display:flex;align-items:center;gap:8px;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.mode-intercept{background:#065f46;color:#6ee7b7}
+.mode-passthrough{background:#7c2d12;color:#fdba74}
+.nav-links{display:flex;gap:8px}
+.nav-links a{color:#94a3b8;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:13px;transition:all .2s}
+.nav-links a:hover,.nav-links a.active{background:#334155;color:#e2e8f0}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}
+.stat-card .label{font-size:12px;color:#94a3b8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.stat-card .value{font-size:28px;font-weight:700}
+.stat-card .value.green{color:#6ee7b7}
+.stat-card .value.blue{color:#60a5fa}
+.stat-card .value.yellow{color:#fbbf24}
+.stat-card .value.red{color:#f87171}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+.btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-secondary{background:#334155;color:#e2e8f0}.btn-secondary:hover{background:#475569}
+.btn-warning{background:#d97706;color:#fff}.btn-warning:hover{background:#b45309}
+.btn-sm{padding:4px 10px;font-size:12px}
+.category-panel{background:#1e293b;border-radius:12px;margin-bottom:16px;border:1px solid #334155;overflow:hidden}
+.category-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#1e293b;border-bottom:1px solid #334155}
+.category-header h3{font-size:15px;color:#e2e8f0}
+.category-header .patterns{font-size:12px;color:#94a3b8;margin-top:4px}
+.category-actions{display:flex;gap:6px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 16px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #334155;background:#1e293b}
+td{padding:10px 16px;border-bottom:1px solid #1e293b;font-size:13px}
+tr:hover td{background:#1e293b}
+.score-bar{width:100px;height:6px;background:#334155;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px}
+.score-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.score-up{color:#6ee7b7;font-size:11px}.score-down{color:#f87171;font-size:11px}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center;z-index:1000}
+.modal{background:#1e293b;border-radius:12px;padding:24px;width:420px;border:1px solid #334155}
+.modal h3{margin-bottom:16px;font-size:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
+.form-group input,.form-group select{width:100%;padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px}
+.form-group input:focus{outline:none;border-color:#3b82f6}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.config-section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid #334155}
+.config-section h3{font-size:15px;margin-bottom:12px}
+.config-row{display:flex;gap:16px;flex-wrap:wrap}
+.config-item{flex:1;min-width:150px}
+.config-item label{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}
+.config-item span{font-size:14px;color:#e2e8f0;font-weight:500}
+.empty-state{text-align:center;padding:40px;color:#64748b}
+.refresh-info{font-size:12px;color:#64748b}
+</style>
 </head>
 <body>
-    <div class="layout">
-        <aside class="sidebar">
-            <div class="sidebar-logo">
-                <div class="icon">&#9881;</div>
-                <span>Model Rank Monitor</span>
-            </div>
-            <div class="sidebar-section-title">Categories</div>
-            <div id="sidebar-nav"></div>
-            <div class="sidebar-section-title" style="margin-top:24px">Settings</div>
-            <div class="sidebar-item" onclick="toggleAutoRefresh()">
-                <span>&#8635;</span>
-                <span id="auto-refresh-label">Auto Refresh: ON</span>
-            </div>
-            <div class="sidebar-item" onclick="fetchData()">
-                <span>&#10227;</span>
-                <span>Refresh Now</span>
-            </div>
-        </aside>
-        <main class="main-content">
-            <div class="header">
-                <div class="header-left">
-                    <h1>Model Rank Dashboard</h1>
-                    <p id="header-subtitle">Real-time model ranking and performance monitoring</p>
-                </div>
-                <div class="header-actions">
-                    <button class="btn btn-secondary" onclick="fetchData()">&#10227; Refresh</button>
-                    <button class="btn btn-primary" onclick="toggleAutoRefresh()" id="toggle-btn">&#9202; Auto: ON</button>
-                </div>
-            </div>
-
-            <div class="stats-grid" id="stats-grid"></div>
-
-            <div class="config-info" id="config-info"></div>
-
-            <div class="content-grid" id="content-grid"></div>
-
-            <div class="footer-bar">
-                <div class="auto-refresh-indicator">
-                    <div class="pulse-dot" id="pulse-dot"></div>
-                    <span id="refresh-status">Auto-refresh every 5s</span>
-                </div>
-                <span id="last-update">Last update: --</span>
-            </div>
-        </main>
+<div class="container">
+<div class="header">
+  <h1>Model Interceptor Dashboard</h1>
+  <div class="header-actions">
+    <div class="nav-links">
+      <a href="/api/model_rank" class="active">Rank Monitor</a>
+      <a href="/api/model_rank/capture">Capture</a>
     </div>
+    <button id="modeBtn" class="mode-switch mode-intercept" onclick="toggleMode()">INTERCEPT</button>
+    <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+  </div>
+</div>
 
-    <div class="loading-overlay" id="loading-overlay">
-        <div class="spinner"></div>
-    </div>
+<div class="stats-grid">
+  <div class="stat-card"><div class="label">Categories</div><div class="value blue" id="statCategories">0</div></div>
+  <div class="stat-card"><div class="label">Total Models</div><div class="value blue" id="statModels">0</div></div>
+  <div class="stat-card"><div class="label">Successes</div><div class="value green" id="statSuccesses">0</div></div>
+  <div class="stat-card"><div class="label">Failures</div><div class="value red" id="statFailures">0</div></div>
+</div>
 
-    <script>
-        let autoRefresh = true;
-        let refreshInterval = null;
-        let previousData = null;
+<div class="config-section">
+  <h3>Score Configuration</h3>
+  <div class="config-row">
+    <div class="config-item"><label>Initial Score</label><span id="cfgInitial">-</span></div>
+    <div class="config-item"><label>Success Bonus</label><span id="cfgBonus">-</span></div>
+    <div class="config-item"><label>Failure Penalty</label><span id="cfgPenalty">-</span></div>
+    <div class="config-item"><label>Mode</label><span id="cfgMode">-</span></div>
+  </div>
+</div>
 
-        function fetchData() {
-            const overlay = document.getElementById('loading-overlay');
-            overlay.classList.add('active');
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button class="btn btn-primary" onclick="showAddCategoryModal()">+ Add Category</button>
+    <button class="btn btn-success" onclick="saveConfig()">Save Config</button>
+    <button class="btn btn-warning" onclick="reloadConfig()">Reload from File</button>
+  </div>
+  <span class="refresh-info">Auto-refresh: 5s | Last: <span id="lastRefresh">-</span></span>
+</div>
 
-            fetch('/api/model_rank/status')
-                .then(r => r.json())
-                .then(data => {
-                    overlay.classList.remove('active');
-                    if (data.success) {
-                        previousData = data.data;
-                        renderAll(data.data);
-                    }
-                })
-                .catch(() => {
-                    overlay.classList.remove('active');
-                });
-        }
+<div id="categoriesContainer"></div>
+</div>
 
-        function renderAll(data) {
-            renderStats(data);
-            renderConfig();
-            renderSidebar(data);
-            renderCategories(data);
-            updateLastUpdate();
-        }
+<div id="modalContainer"></div>
 
-        function renderStats(data) {
-            const categories = Object.keys(data);
-            let totalModels = 0;
-            let totalSuccess = 0;
-            let totalFailure = 0;
-            let avgScore = 0;
-            let modelCount = 0;
+<script>
+let lastData=null;
+let interceptorEnabled=true;
+let captureEnabled=false;
 
-            categories.forEach(cat => {
-                const models = data[cat].models || [];
-                totalModels += models.length;
-                models.forEach(m => {
-                    totalSuccess += m.successes;
-                    totalFailure += m.failures;
-                    avgScore += m.score;
-                    modelCount++;
-                });
-            });
+async function fetchStatus(){
+  try{
+    const r=await fetch('/api/model_rank/status');
+    const j=await r.json();
+    if(j.success){
+      lastData=j.data;
+      if(j.config){
+        interceptorEnabled=j.config.enabled;
+        updateModeButton();
+        document.getElementById('cfgInitial').textContent=j.config.score_config.initial_score||'-';
+        document.getElementById('cfgBonus').textContent='+'+j.config.score_config.success_bonus||'-';
+        document.getElementById('cfgPenalty').textContent='-'+j.config.score_config.failure_penalty||'-';
+        document.getElementById('cfgMode').textContent=interceptorEnabled?'Intercept':'Passthrough';
+      }
+      renderData(j.data);
+    }
+  }catch(e){console.error(e)}
+  document.getElementById('lastRefresh').textContent=new Date().toLocaleTimeString();
+}
 
-            avgScore = modelCount > 0 ? (avgScore / modelCount).toFixed(1) : 0;
-            const totalRequests = totalSuccess + totalFailure;
-            const successRate = totalRequests > 0 ? ((totalSuccess / totalRequests) * 100).toFixed(1) : '--';
+async function fetchMode(){
+  try{
+    const r=await fetch('/api/model_rank/mode');
+    const j=await r.json();
+    if(j.success){
+      interceptorEnabled=j.data.intercept_enabled;
+      captureEnabled=j.data.capture_enabled;
+      updateModeButton();
+    }
+  }catch(e){console.error(e)}
+}
 
-            document.getElementById('stats-grid').innerHTML = `
-                <div class="stat-card">
-                    <div class="label">&#128202; Categories</div>
-                    <div class="value blue">${categories.length}</div>
-                    <div class="sub">Active monitoring groups</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">&#129302; Total Models</div>
-                    <div class="value purple">${totalModels}</div>
-                    <div class="sub">Across all categories</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">&#9989; Success / Fail</div>
-                    <div class="value green">${totalSuccess} <span style="color:var(--text-muted);font-size:18px">/</span> <span style="color:var(--accent-red)">${totalFailure}</span></div>
-                    <div class="sub">Success rate: ${successRate}%</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">&#11088; Avg Score</div>
-                    <div class="value" style="color:var(--accent-cyan)">${avgScore}</div>
-                    <div class="sub">Across all models</div>
-                </div>
-            `;
-        }
+function updateModeButton(){
+  const btn=document.getElementById('modeBtn');
+  if(interceptorEnabled){
+    btn.textContent='INTERCEPT';
+    btn.className='mode-switch mode-intercept';
+  }else{
+    btn.textContent='PASSTHROUGH';
+    btn.className='mode-switch mode-passthrough';
+  }
+  document.getElementById('cfgMode').textContent=interceptorEnabled?'Intercept':'Passthrough';
+}
 
-        function renderConfig() {
-            document.getElementById('config-info').innerHTML = `
-                <h3>&#9881; Score Configuration</h3>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <span class="config-label">Initial Score</span>
-                        <span class="config-value">40</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-label">Success Bonus</span>
-                        <span class="config-value" style="color:var(--accent-green)">+10</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-label">Failure Penalty</span>
-                        <span class="config-value" style="color:var(--accent-red)">-20</span>
-                    </div>
-                </div>
-            `;
-        }
+async function toggleMode(){
+  try{
+    const r=await fetch('/api/model_rank/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intercept_enabled:!interceptorEnabled})});
+    const j=await r.json();
+    if(j.success){
+      interceptorEnabled=j.data.intercept_enabled;
+      updateModeButton();
+    }
+  }catch(e){console.error(e)}
+}
 
-        function renderSidebar(data) {
-            const categories = Object.keys(data);
-            const nav = document.getElementById('sidebar-nav');
-            nav.innerHTML = categories.map(cat => {
-                const models = data[cat].models || [];
-                return `<div class="sidebar-item" onclick="scrollToCategory('${cat}')">
-                    <span>&#128193;</span>
-                    <span>${cat}</span>
-                    <span class="badge">${models.length}</span>
-                </div>`;
-            }).join('');
-        }
+function renderData(data){
+  let totalModels=0,totalS=0,totalF=0;
+  const categories=Object.values(data);
+  categories.forEach(c=>{totalModels+=c.models.length;c.models.forEach(m=>{totalS+=m.successes;totalF+=m.failures})});
+  document.getElementById('statCategories').textContent=categories.length;
+  document.getElementById('statModels').textContent=totalModels;
+  document.getElementById('statSuccesses').textContent=totalS;
+  document.getElementById('statFailures').textContent=totalF;
 
-        function scrollToCategory(cat) {
-            const el = document.getElementById('cat-' + cat);
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+  const container=document.getElementById('categoriesContainer');
+  container.innerHTML='';
+  categories.forEach(cat=>{
+    const maxScore=Math.max(...cat.models.map(m=>m.score),1);
+    let html=`<div class="category-panel">
+      <div class="category-header">
+        <div><h3>${cat.category}</h3><div class="patterns">Patterns: ${cat.patterns.join(', ')||'none'}</div></div>
+        <div class="category-actions">
+          <button class="btn btn-primary btn-sm" onclick="showAddModelModal('${cat.category}')">+ Model</button>
+          <button class="btn btn-danger btn-sm" onclick="removeCategory('${cat.category}')">Delete</button>
+        </div>
+      </div>
+      <table><thead><tr><th>#</th><th>Model</th><th>Score</th><th>Success</th><th>Fail</th><th>Rate</th><th>Action</th></tr></thead><tbody>`;
+    cat.models.forEach((m,i)=>{
+      const pct=maxScore>0?(m.score/maxScore*100):0;
+      const rate=m.successes+m.failures>0?Math.round(m.successes/(m.successes+m.failures)*100):0;
+      const barColor=rate>=80?'#6ee7b7':rate>=50?'#fbbf24':'#f87171';
+      html+=`<tr><td>${i+1}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.model}">${m.model}</td>
+        <td><div class="score-bar"><div class="score-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>${Math.round(m.score)}</td>
+        <td style="color:#6ee7b7">${m.successes}</td><td style="color:#f87171">${m.failures}</td><td>${rate}%</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeModel('${cat.category}','${m.model}')">Remove</button></td></tr>`;
+    });
+    if(cat.models.length===0)html+=`<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px">No models</td></tr>`;
+    html+=`</tbody></table></div>`;
+    container.innerHTML+=html;
+  });
+}
 
-        function renderCategories(data) {
-            const categories = Object.keys(data);
-            const grid = document.getElementById('content-grid');
+function showAddCategoryModal(){
+  document.getElementById('modalContainer').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal"><h3>Add Category</h3>
+    <div class="form-group"><label>Category Name</label><input id="addCatName" placeholder="e.g. high_tier"></div>
+    <div class="form-group"><label>Patterns (comma separated)</label><input id="addCatPatterns" placeholder="e.g. gpt-4,claude-3"></div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="addCategory()">Add</button></div></div></div>`;
+}
 
-            if (categories.length === 0) {
-                grid.innerHTML = `<div class="category-panel full-width"><div class="empty-state"><div class="icon">&#128230;</div><p>No model ranking data available</p></div></div>`;
-                return;
-            }
+function showAddModelModal(category){
+  document.getElementById('modalContainer').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal"><h3>Add Model to ${category}</h3>
+    <div class="form-group"><label>Model Name</label><input id="addModelName" placeholder="e.g. gpt-4o"></div>
+    <div class="form-group"><label>Weight</label><input id="addModelWeight" type="number" value="1" min="1"></div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="addModel('${category}')">Add</button></div></div></div>`;
+}
 
-            grid.innerHTML = categories.map(cat => {
-                const models = data[cat].models || [];
-                const maxScore = Math.max(...models.map(m => m.score), 100);
-                const totalSuccess = models.reduce((s, m) => s + m.successes, 0);
-                const totalFailure = models.reduce((s, m) => s + m.failures, 0);
-                const total = totalSuccess + totalFailure;
-                const rate = total > 0 ? ((totalSuccess / total) * 100).toFixed(1) : '--';
+function closeModal(){document.getElementById('modalContainer').innerHTML=''}
 
-                const rows = models.map((m, i) => {
-                    const rank = i + 1;
-                    let rankClass = 'rank-other';
-                    if (rank === 1) rankClass = 'rank-1';
-                    else if (rank === 2) rankClass = 'rank-2';
-                    else if (rank === 3) rankClass = 'rank-3';
+async function addCategory(){
+  const name=document.getElementById('addCatName').value.trim();
+  const patterns=document.getElementById('addCatPatterns').value.split(',').map(s=>s.trim()).filter(s=>s);
+  if(!name){alert('Category name required');return}
+  try{
+    const r=await fetch('/api/model_rank/category/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:name,patterns:patterns})});
+    const j=await r.json();
+    if(j.success){closeModal();fetchStatus()}else{alert(j.message)}
+  }catch(e){alert('Error: '+e)}
+}
 
-                    const pct = Math.min((m.score / maxScore) * 100, 100);
-                    let barClass = 'high';
-                    let valClass = 'high';
-                    if (pct < 30) { barClass = 'low'; valClass = 'low'; }
-                    else if (pct < 60) { barClass = 'medium'; valClass = 'medium'; }
+async function removeCategory(category){
+  if(!confirm('Delete category "'+category+'"? This will remove all models in it.'))return;
+  try{
+    const r=await fetch('/api/model_rank/category/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category})});
+    const j=await r.json();
+    if(j.success)fetchStatus();else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
 
-                    const mTotal = m.successes + m.failures;
-                    const mRate = mTotal > 0 ? ((m.successes / mTotal) * 100).toFixed(1) : '--';
-                    let rateClass = 'good';
-                    if (mRate !== '--') {
-                        const r = parseFloat(mRate);
-                        if (r < 50) rateClass = 'bad';
-                        else if (r < 80) rateClass = 'warn';
-                    }
+async function addModel(category){
+  const name=document.getElementById('addModelName').value.trim();
+  const weight=parseInt(document.getElementById('addModelWeight').value)||1;
+  if(!name){alert('Model name required');return}
+  try{
+    const r=await fetch('/api/model_rank/model/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category,model:name,weight:weight})});
+    const j=await r.json();
+    if(j.success){closeModal();fetchStatus()}else{alert(j.message)}
+  }catch(e){alert('Error: '+e)}
+}
 
-                    const scoreDiff = previousData && previousData[cat]
-                        ? (() => {
-                            const prev = (previousData[cat].models || [])[i];
-                            return prev ? (m.score - prev.score) : 0;
-                        })()
-                        : 0;
+async function removeModel(category,model){
+  if(!confirm('Remove model "'+model+'"?'))return;
+  try{
+    const r=await fetch('/api/model_rank/model/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category,model:model})});
+    const j=await r.json();
+    if(j.success)fetchStatus();else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
 
-                    return `<tr>
-                        <td>
-                            <div class="rank-cell">
-                                <div class="rank-badge ${rankClass}">${rank}</div>
-                            </div>
-                        </td>
-                        <td><span class="model-name">${m.model}</span></td>
-                        <td>
-                            <div class="score-bar-container">
-                                <div class="score-bar"><div class="score-bar-fill ${barClass}" style="width:${pct}%"></div></div>
-                                <span class="score-value ${valClass}">${m.score.toFixed(0)}</span>
-                                ${scoreDiff !== 0 ? `<span style="font-size:11px;color:${scoreDiff > 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">${scoreDiff > 0 ? '+' : ''}${scoreDiff.toFixed(0)}</span>` : ''}
-                            </div>
-                        </td>
-                        <td><span class="stat-pill success">&#9989; ${m.successes}</span></td>
-                        <td><span class="stat-pill failure">&#10060; ${m.failures}</span></td>
-                        <td><span class="success-rate ${rateClass}">${mRate}%</span></td>
-                    </tr>`;
-                }).join('');
+async function saveConfig(){
+  try{
+    const r=await fetch('/api/model_rank/config/save',{method:'POST'});
+    const j=await r.json();
+    alert(j.success?'Config saved to file!':'Error: '+j.message);
+  }catch(e){alert('Error: '+e)}
+}
 
-                return `<div class="category-panel" id="cat-${cat}">
-                    <div class="category-panel-header">
-                        <div class="title"><div class="dot"></div>${cat}</div>
-                        <div class="meta">${models.length} models &middot; success rate: ${rate}%</div>
-                    </div>
-                    <table class="model-table">
-                        <thead>
-                            <tr>
-                                <th style="width:50px">Rank</th>
-                                <th>Model</th>
-                                <th style="min-width:180px">Score</th>
-                                <th>Success</th>
-                                <th>Failure</th>
-                                <th>Rate</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
-                </div>`;
-            }).join('');
-        }
+async function reloadConfig(){
+  if(!confirm('Reload config from file? This will reset runtime changes.'))return;
+  try{
+    const r=await fetch('/api/model_rank/config/reload',{method:'POST'});
+    const j=await r.json();
+    if(j.success)fetchStatus();else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
 
-        function updateLastUpdate() {
-            const now = new Date();
-            document.getElementById('last-update').textContent = 'Last update: ' + now.toLocaleString('zh-CN');
-        }
-
-        function toggleAutoRefresh() {
-            autoRefresh = !autoRefresh;
-            const label = document.getElementById('auto-refresh-label');
-            const btn = document.getElementById('toggle-btn');
-            const dot = document.getElementById('pulse-dot');
-            const status = document.getElementById('refresh-status');
-
-            if (autoRefresh) {
-                label.textContent = 'Auto Refresh: ON';
-                btn.innerHTML = '&#9202; Auto: ON';
-                dot.style.background = 'var(--accent-green)';
-                dot.style.animation = 'pulse 2s infinite';
-                status.textContent = 'Auto-refresh every 5s';
-                startAutoRefresh();
-            } else {
-                label.textContent = 'Auto Refresh: OFF';
-                btn.innerHTML = '&#9202; Auto: OFF';
-                dot.style.background = 'var(--text-muted)';
-                dot.style.animation = 'none';
-                status.textContent = 'Auto-refresh paused';
-                stopAutoRefresh();
-            }
-        }
-
-        function startAutoRefresh() {
-            stopAutoRefresh();
-            refreshInterval = setInterval(() => {
-                if (autoRefresh) fetchData();
-            }, 5000);
-        }
-
-        function stopAutoRefresh() {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-                refreshInterval = null;
-            }
-        }
-
-        fetchData();
-        startAutoRefresh();
-    </script>
+function refreshData(){fetchStatus();fetchMode()}
+fetchStatus();fetchMode();
+setInterval(()=>{fetchStatus();fetchMode()},5000);
+</script>
 </body>
 </html>

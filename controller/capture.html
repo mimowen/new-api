@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request Capture</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding:16px 24px;background:#1e293b;border-radius:12px;border:1px solid #334155}
+.header h1{font-size:22px;background:linear-gradient(135deg,#f472b6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-actions{display:flex;gap:12px;align-items:center}
+.mode-switch{display:flex;align-items:center;gap:8px;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.mode-on{background:#065f46;color:#6ee7b7}
+.mode-off{background:#334155;color:#94a3b8}
+.nav-links{display:flex;gap:8px}
+.nav-links a{color:#94a3b8;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:13px;transition:all .2s}
+.nav-links a:hover,.nav-links a.active{background:#334155;color:#e2e8f0}
+.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-secondary{background:#334155;color:#e2e8f0}.btn-secondary:hover{background:#475569}
+.btn-sm{padding:4px 10px;font-size:12px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.filter-input{padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px;width:200px}
+.filter-input:focus{outline:none;border-color:#3b82f6}
+.timeline{position:relative}
+.record-card{background:#1e293b;border-radius:12px;margin-bottom:12px;border:1px solid #334155;overflow:hidden;transition:all .2s}
+.record-card.selected{border-color:#3b82f6}
+.record-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;border-bottom:1px solid #1e293b}
+.record-header:hover{background:#1e293b}
+.record-meta{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.record-time{font-size:12px;color:#94a3b8;font-family:monospace}
+.record-type{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase}
+.type-request{background:#1e3a5f;color:#60a5fa}
+.type-response{background:#064e3b;color:#6ee7b7}
+.type-error{background:#7f1d1d;color:#f87171}
+.record-model{font-size:13px;color:#e2e8f0}
+.record-arrow{color:#64748b;font-size:12px}
+.record-actions{display:flex;gap:6px;align-items:center}
+.record-body{padding:16px;display:none;border-top:1px solid #334155}
+.record-body.open{display:block}
+.record-section{margin-bottom:12px}
+.record-section h4{font-size:12px;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.record-content{background:#0f172a;border-radius:8px;padding:12px;font-family:'Fira Code',monospace,Consolas;font-size:12px;max-height:400px;overflow:auto;white-space:pre-wrap;word-break:break-all;line-height:1.5;color:#cbd5e1}
+.pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:20px}
+.pagination span{font-size:13px;color:#94a3b8}
+.empty-state{text-align:center;padding:60px;color:#64748b}
+.empty-state h3{margin-bottom:8px}
+.checkbox{width:16px;height:16px;accent-color:#3b82f6;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+  <h1>Request Capture</h1>
+  <div class="header-actions">
+    <div class="nav-links">
+      <a href="/api/model_rank">Rank Monitor</a>
+      <a href="/api/model_rank/capture" class="active">Capture</a>
+    </div>
+    <button id="captureBtn" class="mode-switch mode-off" onclick="toggleCapture()">CAPTURE OFF</button>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input class="filter-input" id="modelFilter" placeholder="Filter by model name..." oninput="debounceFetch()">
+    <button class="btn btn-secondary btn-sm" onclick="fetchRecords()">Search</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete Selected (<span id="selectedCount">0</span>)</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteAll()">Delete All</button>
+  </div>
+  <span style="font-size:12px;color:#64748b">Total: <span id="totalRecords">0</span> records</span>
+</div>
+
+<div class="timeline" id="recordsContainer">
+  <div class="empty-state"><h3>No capture records</h3><p>Enable capture to start recording requests</p></div>
+</div>
+
+<div class="pagination" id="pagination" style="display:none">
+  <button class="btn btn-secondary btn-sm" onclick="prevPage()">Prev</button>
+  <span id="pageInfo">Page 1</span>
+  <button class="btn btn-secondary btn-sm" onclick="nextPage()">Next</button>
+</div>
+</div>
+
+<script>
+let records=[];
+let total=0;
+let offset=0;
+let limit=20;
+let selectedIds=new Set();
+let captureOn=false;
+let debounceTimer=null;
+
+async function fetchMode(){
+  try{
+    const r=await fetch('/api/model_rank/mode');
+    const j=await r.json();
+    if(j.success){
+      captureOn=j.data.capture_enabled;
+      updateCaptureBtn();
+    }
+  }catch(e){console.error(e)}
+}
+
+function updateCaptureBtn(){
+  const btn=document.getElementById('captureBtn');
+  if(captureOn){btn.textContent='CAPTURE ON';btn.className='mode-switch mode-on'}
+  else{btn.textContent='CAPTURE OFF';btn.className='mode-switch mode-off'}
+}
+
+async function toggleCapture(){
+  try{
+    const r=await fetch('/api/model_rank/mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({capture_enabled:!captureOn})});
+    const j=await r.json();
+    if(j.success){captureOn=j.data.capture_enabled;updateCaptureBtn()}
+  }catch(e){console.error(e)}
+}
+
+async function fetchRecords(){
+  const filter=document.getElementById('modelFilter').value.trim();
+  try{
+    const r=await fetch(`/api/model_rank/capture/records?model=${encodeURIComponent(filter)}&limit=${limit}&offset=${offset}`);
+    const j=await r.json();
+    if(j.success){
+      records=j.data.records;
+      total=j.data.total;
+      document.getElementById('totalRecords').textContent=total;
+      renderRecords();
+      updatePagination();
+    }
+  }catch(e){console.error(e)}
+}
+
+function debounceFetch(){
+  clearTimeout(debounceTimer);
+  debounceTimer=setTimeout(()=>{offset=0;fetchRecords()},300);
+}
+
+function renderRecords(){
+  const container=document.getElementById('recordsContainer');
+  if(records.length===0){
+    container.innerHTML='<div class="empty-state"><h3>No capture records</h3><p>Enable capture to start recording requests</p></div>';
+    return;
+  }
+  let html='';
+  records.forEach(rec=>{
+    const isSelected=selectedIds.has(rec.id);
+    const typeClass=rec.type==='response'?'type-response':rec.type==='error'?'type-error':'type-request';
+    const ts=new Date(rec.timestamp).toLocaleString();
+    html+=`<div class="record-card ${isSelected?'selected':''}" data-id="${rec.id}">
+      <div class="record-header" onclick="toggleRecord('${rec.id}')">
+        <div class="record-meta">
+          <input type="checkbox" class="checkbox" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleSelect('${rec.id}')">
+          <span class="record-time">${ts}</span>
+          <span class="record-type ${typeClass}">${rec.type}</span>
+          <span class="record-model">${rec.original_model}</span>
+          <span class="record-arrow">→</span>
+          <span class="record-model">${rec.mapped_model}</span>
+          <span style="font-size:11px;color:#64748b">[${rec.category}]</span>
+        </div>
+        <div class="record-actions">
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteSingle('${rec.id}')">Delete</button>
+        </div>
+      </div>
+      <div class="record-body" id="body-${rec.id}">
+        ${rec.request_body?`<div class="record-section"><h4>Request Body</h4><div class="record-content">${formatJSON(rec.request_body)}</div></div>`:''}
+        ${rec.response_body?`<div class="record-section"><h4>Response Body</h4><div class="record-content">${formatJSON(rec.response_body)}</div></div>`:''}
+      </div>
+    </div>`;
+  });
+  container.innerHTML=html;
+}
+
+function formatJSON(str){
+  try{
+    const obj=JSON.parse(str);
+    return syntaxHighlight(JSON.stringify(obj,null,2));
+  }catch(e){
+    return escapeHtml(str);
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function syntaxHighlight(json){
+  json=escapeHtml(json);
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,function(match){
+    let cls='color:#fbbf24';
+    if(/:$/.test(match))cls='color:#60a5fa';
+    else if(/^"/.test(match))cls='color:#6ee7b7';
+    else if(/true|false/.test(match))cls='color:#f472b6';
+    else if(/null/.test(match))cls='color:#94a3b8';
+    return '<span style="'+cls+'">'+match+'</span>';
+  });
+}
+
+function toggleRecord(id){
+  const body=document.getElementById('body-'+id);
+  if(body)body.classList.toggle('open');
+}
+
+function toggleSelect(id){
+  if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);
+  document.getElementById('selectedCount').textContent=selectedIds.size;
+  renderRecords();
+}
+
+async function deleteSingle(id){
+  try{
+    const r=await fetch('/api/model_rank/capture/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[id]})});
+    const j=await r.json();
+    if(j.success){selectedIds.delete(id);fetchRecords()}
+    else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
+
+async function deleteSelected(){
+  if(selectedIds.size===0){alert('No records selected');return}
+  if(!confirm('Delete '+selectedIds.size+' records?'))return;
+  try{
+    const r=await fetch('/api/model_rank/capture/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:Array.from(selectedIds)})});
+    const j=await r.json();
+    if(j.success){selectedIds.clear();document.getElementById('selectedCount').textContent=0;fetchRecords()}
+    else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
+
+async function deleteAll(){
+  if(!confirm('Delete ALL capture records? This cannot be undone.'))return;
+  try{
+    const r=await fetch('/api/model_rank/capture/delete_all',{method:'POST'});
+    const j=await r.json();
+    if(j.success){selectedIds.clear();document.getElementById('selectedCount').textContent=0;fetchRecords()}
+    else alert(j.message);
+  }catch(e){alert('Error: '+e)}
+}
+
+function updatePagination(){
+  const page=Math.floor(offset/limit)+1;
+  const totalPages=Math.ceil(total/limit)||1;
+  document.getElementById('pageInfo').textContent=`Page ${page} / ${totalPages}`;
+  document.getElementById('pagination').style.display=totalPages>1?'flex':'none';
+}
+
+function prevPage(){if(offset>=limit){offset-=limit;fetchRecords()}}
+function nextPage(){if(offset+limit<total){offset+=limit;fetchRecords()}}
+
+fetchMode();
+fetchRecords();
+setInterval(()=>{fetchRecords()},10000);
+</script>
+</body>
+</html>

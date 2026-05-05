@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,33 +21,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	modelConfig     *ModelMappingConfig
-	configOnce      sync.Once
-	configLoadError error
-)
-
 type ModelMappingConfig struct {
-	Enabled            bool                      `yaml:"enabled"`
-	ScoreConfig        ScoreConfig               `yaml:"score_config"`
-	Mappings           map[string]CategoryConfig `yaml:"mappings"`
-	InterceptEndpoints []string                  `yaml:"intercept_endpoints"`
+	Enabled            bool                      `yaml:"enabled" json:"enabled"`
+	ScoreConfig        ScoreConfig               `yaml:"score_config" json:"score_config"`
+	Mappings           map[string]CategoryConfig `yaml:"mappings" json:"mappings"`
+	InterceptEndpoints []string                  `yaml:"intercept_endpoints" json:"intercept_endpoints"`
 }
 
 type ScoreConfig struct {
-	InitialScore   float64 `yaml:"initial_score"`
-	SuccessBonus   float64 `yaml:"success_bonus"`
-	FailurePenalty float64 `yaml:"failure_penalty"`
+	InitialScore   float64 `yaml:"initial_score" json:"initial_score"`
+	SuccessBonus   float64 `yaml:"success_bonus" json:"success_bonus"`
+	FailurePenalty float64 `yaml:"failure_penalty" json:"failure_penalty"`
 }
 
 type CategoryConfig struct {
-	Patterns []string      `yaml:"patterns"`
-	Models   []ModelWeight `yaml:"models"`
+	Patterns []string      `yaml:"patterns" json:"patterns"`
+	Models   []ModelWeight `yaml:"models" json:"models"`
 }
 
 type ModelWeight struct {
-	Model  string `yaml:"model"`
-	Weight int    `yaml:"weight"`
+	Model  string `yaml:"model" json:"model"`
+	Weight int    `yaml:"weight" json:"weight"`
 }
 
 type RankedModel struct {
@@ -97,7 +92,7 @@ func (mr *ModelRanker) InitializeCategory(category string, models []ModelWeight,
 	rankedModels := make([]*RankedModel, 0, len(models))
 	for _, mw := range models {
 		if !enabledSet[strings.ToLower(mw.Model)] {
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 不在系统可用模型中，已从 %s 分组移除", mw.Model, category))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] model %s not in enabled models, removed from %s", mw.Model, category))
 			continue
 		}
 		rankedModels = append(rankedModels, &RankedModel{
@@ -136,13 +131,6 @@ func (mr *ModelRanker) GetNextModel(category string, excludeModels []string) str
 	return ""
 }
 
-func getScoreConfig() ScoreConfig {
-	if modelConfig != nil {
-		return modelConfig.ScoreConfig
-	}
-	return ScoreConfig{}
-}
-
 func (mr *ModelRanker) RecordSuccess(category, modelName string) {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
@@ -152,8 +140,8 @@ func (mr *ModelRanker) RecordSuccess(category, modelName string) {
 		return
 	}
 
-	sc := getScoreConfig()
-	successBonus := sc.SuccessBonus
+	cfg := GetConfig()
+	successBonus := cfg.ScoreConfig.SuccessBonus
 	if successBonus == 0 {
 		successBonus = 10
 	}
@@ -180,8 +168,8 @@ func (mr *ModelRanker) RecordFailure(category, modelName string) {
 		return
 	}
 
-	sc := getScoreConfig()
-	failurePenalty := sc.FailurePenalty
+	cfg := GetConfig()
+	failurePenalty := cfg.ScoreConfig.FailurePenalty
 	if failurePenalty == 0 {
 		failurePenalty = 5
 	}
@@ -272,9 +260,45 @@ func (mr *ModelRanker) RemoveModel(category, modelName string) {
 	}
 }
 
+func (mr *ModelRanker) AddCategory(category string, patterns []string, models []ModelWeight, initialScore float64) {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+
+	if _, exists := mr.rankings[category]; exists {
+		return
+	}
+
+	if initialScore == 0 {
+		initialScore = 100
+	}
+
+	rankedModels := make([]*RankedModel, 0, len(models))
+	for _, mw := range models {
+		rankedModels = append(rankedModels, &RankedModel{
+			Model:     mw.Model,
+			Score:     initialScore,
+			LastUsed:  time.Time{},
+			Successes: 0,
+			Failures:  0,
+		})
+	}
+
+	mr.rankings[category] = rankedModels
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Added category %s with %d models", category, len(rankedModels)))
+}
+
+func (mr *ModelRanker) RemoveCategory(category string) {
+	mr.mu.Lock()
+	defer mr.mu.Unlock()
+
+	delete(mr.rankings, category)
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Removed category %s", category))
+}
+
 type RankStatus struct {
 	Category string            `json:"category"`
 	Models   []RankedModelInfo `json:"models"`
+	Patterns []string          `json:"patterns"`
 }
 
 type RankedModelInfo struct {
@@ -288,6 +312,7 @@ func (mr *ModelRanker) GetRankStatus() map[string]RankStatus {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
+	cfg := GetConfig()
 	status := make(map[string]RankStatus)
 	for category, models := range mr.rankings {
 		modelsInfo := make([]RankedModelInfo, 0, len(models))
@@ -299,9 +324,14 @@ func (mr *ModelRanker) GetRankStatus() map[string]RankStatus {
 				Failures:  m.Failures,
 			})
 		}
+		var patterns []string
+		if catCfg, ok := cfg.Mappings[category]; ok {
+			patterns = catCfg.Patterns
+		}
 		status[category] = RankStatus{
 			Category: category,
 			Models:   modelsInfo,
+			Patterns: patterns,
 		}
 	}
 	return status
@@ -318,47 +348,300 @@ func (mr *ModelRanker) GetCategoryModelCount(category string) int {
 	return len(rankedModels)
 }
 
+var (
+	configPtr      atomic.Pointer[ModelMappingConfig]
+	configFileMu   sync.Mutex
+	configLoaded   atomic.Bool
+	captureEnabled atomic.Bool
+)
+
+func GetConfig() *ModelMappingConfig {
+	if p := configPtr.Load(); p != nil {
+		return p
+	}
+	return &ModelMappingConfig{}
+}
+
+func IsInterceptorEnabled() bool {
+	return GetConfig().Enabled
+}
+
+func SetInterceptorEnabled(enabled bool) {
+	cfg := GetConfig()
+	newCfg := *cfg
+	newCfg.Enabled = enabled
+	configPtr.Store(&newCfg)
+	mode := "passthrough"
+	if enabled {
+		mode = "intercept"
+	}
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Mode switched to: %s", mode))
+}
+
+func IsCaptureEnabled() bool {
+	return captureEnabled.Load()
+}
+
+func SetCaptureEnabled(enabled bool) {
+	captureEnabled.Store(enabled)
+	mode := "off"
+	if enabled {
+		mode = "on"
+	}
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Capture mode: %s", mode))
+}
+
 func LoadModelConfig() (*ModelMappingConfig, error) {
-	configOnce.Do(func() {
-		configPaths := []string{"model_mapping.yaml", "/data/model_mapping.yaml"}
-		var foundData []byte
-		var foundPath string
+	if configLoaded.Load() {
+		return GetConfig(), nil
+	}
 
-		for _, path := range configPaths {
-			data, err := os.ReadFile(path)
-			if err == nil {
-				foundData = data
-				foundPath = path
-				break
-			}
+	configPaths := []string{"model_mapping.yaml", "/data/model_mapping.yaml"}
+	var foundData []byte
+	var foundPath string
+
+	for _, path := range configPaths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			foundData = data
+			foundPath = path
+			break
 		}
+	}
 
-		if foundData != nil {
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 配置文件加载成功: %s", foundPath))
+	if foundData != nil {
+		common.SysLog(fmt.Sprintf("[ModelInterceptor] Config loaded: %s", foundPath))
 
-			tempConfig := &ModelMappingConfig{}
-			err := yaml.Unmarshal(foundData, tempConfig)
-			if err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 配置文件解析错误: %v", err))
-				fallbackConfig := getDefaultModelConfig()
-				modelConfig = &fallbackConfig
-				return
-			}
-			modelConfig = tempConfig
-		} else {
-			common.SysLog("[ModelInterceptor] 未找到配置文件，使用默认配置（不进行模型映射）")
-			defaultConfig := getDefaultModelConfig()
-			modelConfig = &defaultConfig
+		tempConfig := &ModelMappingConfig{}
+		err := yaml.Unmarshal(foundData, tempConfig)
+		if err != nil {
+			common.SysError(fmt.Sprintf("[ModelInterceptor] Config parse error: %v", err))
+			fallbackConfig := getDefaultModelConfig()
+			configPtr.Store(&fallbackConfig)
+			configLoaded.Store(true)
+			return GetConfig(), err
 		}
+		configPtr.Store(tempConfig)
+	} else {
+		common.SysLog("[ModelInterceptor] No config file found, using default (disabled)")
+		defaultConfig := getDefaultModelConfig()
+		configPtr.Store(&defaultConfig)
+	}
 
-		ranker := GetModelRanker()
-		initialScore := modelConfig.ScoreConfig.InitialScore
-		for category, cfg := range modelConfig.Mappings {
-			ranker.InitializeCategory(category, cfg.Models, initialScore)
+	cfg := GetConfig()
+	ranker := GetModelRanker()
+	initialScore := cfg.ScoreConfig.InitialScore
+	for category, catCfg := range cfg.Mappings {
+		ranker.InitializeCategory(category, catCfg.Models, initialScore)
+	}
+
+	configLoaded.Store(true)
+	return GetConfig(), nil
+}
+
+func ReloadModelConfig() (*ModelMappingConfig, error) {
+	configPaths := []string{"model_mapping.yaml", "/data/model_mapping.yaml"}
+	var foundData []byte
+	var foundPath string
+
+	for _, path := range configPaths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			foundData = data
+			foundPath = path
+			break
 		}
-	})
+	}
 
-	return modelConfig, configLoadError
+	if foundData == nil {
+		return GetConfig(), fmt.Errorf("no config file found")
+	}
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Reloading config: %s", foundPath))
+
+	tempConfig := &ModelMappingConfig{}
+	err := yaml.Unmarshal(foundData, tempConfig)
+	if err != nil {
+		return GetConfig(), fmt.Errorf("config parse error: %v", err)
+	}
+
+	wasEnabled := GetConfig().Enabled
+	configPtr.Store(tempConfig)
+
+	ranker := GetModelRanker()
+	initialScore := tempConfig.ScoreConfig.InitialScore
+	for category, catCfg := range tempConfig.Mappings {
+		ranker.InitializeCategory(category, catCfg.Models, initialScore)
+	}
+
+	if wasEnabled != tempConfig.Enabled {
+		mode := "passthrough"
+		if tempConfig.Enabled {
+			mode = "intercept"
+		}
+		common.SysLog(fmt.Sprintf("[ModelInterceptor] Mode changed to: %s after reload", mode))
+	}
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Config reloaded successfully"))
+	return GetConfig(), nil
+}
+
+func SaveModelConfig() error {
+	configFileMu.Lock()
+	defer configFileMu.Unlock()
+
+	cfg := GetConfig()
+	ranker := GetModelRanker()
+
+	saveCfg := *cfg
+	saveCfg.Mappings = make(map[string]CategoryConfig)
+
+	status := ranker.GetRankStatus()
+	for category, catStatus := range status {
+		models := make([]ModelWeight, 0, len(catStatus.Models))
+		for _, m := range catStatus.Models {
+			models = append(models, ModelWeight{
+				Model:  m.Model,
+				Weight: 1,
+			})
+		}
+		patterns := catStatus.Patterns
+		if patterns == nil {
+			patterns = []string{}
+		}
+		saveCfg.Mappings[category] = CategoryConfig{
+			Patterns: patterns,
+			Models:   models,
+		}
+	}
+
+	data, err := yaml.Marshal(&saveCfg)
+	if err != nil {
+		return fmt.Errorf("yaml marshal error: %v", err)
+	}
+
+	configPaths := []string{"model_mapping.yaml", "/data/model_mapping.yaml"}
+	writePath := configPaths[0]
+	for _, path := range configPaths {
+		if _, err := os.Stat(path); err == nil {
+			writePath = path
+			break
+		}
+	}
+
+	err = os.WriteFile(writePath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("write file error: %v", err)
+	}
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Config saved to %s", writePath))
+	return nil
+}
+
+func AddCategoryToConfig(category string, patterns []string) error {
+	cfg := GetConfig()
+	newCfg := *cfg
+	if newCfg.Mappings == nil {
+		newCfg.Mappings = make(map[string]CategoryConfig)
+	}
+	if _, exists := newCfg.Mappings[category]; exists {
+		return fmt.Errorf("category %s already exists", category)
+	}
+	newCfg.Mappings[category] = CategoryConfig{
+		Patterns: patterns,
+		Models:   []ModelWeight{},
+	}
+	configPtr.Store(&newCfg)
+
+	ranker := GetModelRanker()
+	initialScore := newCfg.ScoreConfig.InitialScore
+	ranker.AddCategory(category, patterns, []ModelWeight{}, initialScore)
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Added category %s with patterns %v", category, patterns))
+	return nil
+}
+
+func RemoveCategoryFromConfig(category string) error {
+	cfg := GetConfig()
+	newCfg := *cfg
+	if newCfg.Mappings == nil {
+		return fmt.Errorf("category %s not found", category)
+	}
+	if _, exists := newCfg.Mappings[category]; !exists {
+		return fmt.Errorf("category %s not found", category)
+	}
+	delete(newCfg.Mappings, category)
+	configPtr.Store(&newCfg)
+
+	ranker := GetModelRanker()
+	ranker.RemoveCategory(category)
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Removed category %s from config", category))
+	return nil
+}
+
+func AddModelToConfig(category, modelName string, weight int) error {
+	cfg := GetConfig()
+	newCfg := *cfg
+	if newCfg.Mappings == nil {
+		return fmt.Errorf("category %s not found", category)
+	}
+	catCfg, exists := newCfg.Mappings[category]
+	if !exists {
+		return fmt.Errorf("category %s not found", category)
+	}
+
+	for _, m := range catCfg.Models {
+		if m.Model == modelName {
+			return fmt.Errorf("model %s already exists in category %s", modelName, category)
+		}
+	}
+
+	catCfg.Models = append(catCfg.Models, ModelWeight{Model: modelName, Weight: weight})
+	newCfg.Mappings[category] = catCfg
+	configPtr.Store(&newCfg)
+
+	initialScore := newCfg.ScoreConfig.InitialScore
+	ranker := GetModelRanker()
+	ranker.AddModel(category, modelName, initialScore)
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Added model %s to category %s in config", modelName, category))
+	return nil
+}
+
+func RemoveModelFromConfig(category, modelName string) error {
+	cfg := GetConfig()
+	newCfg := *cfg
+	if newCfg.Mappings == nil {
+		return fmt.Errorf("category %s not found", category)
+	}
+	catCfg, exists := newCfg.Mappings[category]
+	if !exists {
+		return fmt.Errorf("category %s not found", category)
+	}
+
+	found := false
+	newModels := make([]ModelWeight, 0, len(catCfg.Models))
+	for _, m := range catCfg.Models {
+		if m.Model == modelName {
+			found = true
+			continue
+		}
+		newModels = append(newModels, m)
+	}
+	if !found {
+		return fmt.Errorf("model %s not found in category %s", modelName, category)
+	}
+
+	catCfg.Models = newModels
+	newCfg.Mappings[category] = catCfg
+	configPtr.Store(&newCfg)
+
+	ranker := GetModelRanker()
+	ranker.RemoveModel(category, modelName)
+
+	common.SysLog(fmt.Sprintf("[ModelInterceptor] Removed model %s from category %s in config", modelName, category))
+	return nil
 }
 
 func getDefaultModelConfig() ModelMappingConfig {
@@ -509,36 +792,38 @@ func clearChannelContext(c *gin.Context) {
 }
 
 func ModelInterceptorMiddleware() gin.HandlerFunc {
-	config, _ := LoadModelConfig()
-	if !config.Enabled {
-		return func(c *gin.Context) {
-			c.Next()
-		}
-	}
+	LoadModelConfig()
 
 	return func(c *gin.Context) {
-		if !shouldInterceptRequest(c.Request.URL.Path, config) {
+		cfg := GetConfig()
+
+		if !cfg.Enabled {
+			c.Next()
+			return
+		}
+
+		if !shouldInterceptRequest(c.Request.URL.Path, cfg) {
 			c.Next()
 			return
 		}
 
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
+			common.SysError(fmt.Sprintf("[ModelInterceptor] read body failed: %v", err))
 			c.Next()
 			return
 		}
 
 		body, err := storage.Bytes()
 		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
+			common.SysError(fmt.Sprintf("[ModelInterceptor] read storage failed: %v", err))
 			c.Next()
 			return
 		}
 
 		var requestBody map[string]json.RawMessage
 		if err := common.Unmarshal(body, &requestBody); err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
+			common.SysError(fmt.Sprintf("[ModelInterceptor] parse JSON failed: %v", err))
 			c.Next()
 			return
 		}
@@ -555,10 +840,14 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		category := DetermineCategory(originalModel, config)
+		category := DetermineCategory(originalModel, cfg)
 		if category == "" {
 			c.Next()
 			return
+		}
+
+		if captureEnabled.Load() {
+			recordCapture(originalModel, originalModel, category, "request", string(body), "")
 		}
 
 		ranker := GetModelRanker()
@@ -570,12 +859,12 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			newModel := ranker.GetNextModel(category, triedModels)
 			if newModel == "" {
 				if len(triedModels) == 0 {
-					common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始请求", category))
+					common.SysLog(fmt.Sprintf("[ModelInterceptor] category %s no available models, passthrough", category))
 					c.Writer = originalWriter
 					c.Next()
 					return
 				}
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误 (bodyLen=%d)", category, lastFailedRec.body.Len()))
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] category %s all models tried, returning last error (bodyLen=%d)", category, lastFailedRec.body.Len()))
 				c.Writer = originalWriter
 				if lastFailedRec != nil {
 					lastFailedRec.FlushToOriginal()
@@ -584,11 +873,11 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			}
 
 			triedModels = append(triedModels, newModel)
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s, 尝试: %d/%d)", originalModel, newModel, category, len(triedModels), ranker.GetCategoryModelCount(category)))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] model replace: %s -> %s (category: %s, attempt: %d/%d)", originalModel, newModel, category, len(triedModels), ranker.GetCategoryModelCount(category)))
 
 			parsedBody := make(map[string]json.RawMessage)
 			if err := common.Unmarshal(body, &parsedBody); err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
+				common.SysError(fmt.Sprintf("[ModelInterceptor] parse body failed: %v", err))
 				c.Writer = originalWriter
 				c.Next()
 				return
@@ -597,7 +886,7 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 			parsedBody["model"], _ = common.Marshal(newModel)
 			newBody, err := common.Marshal(parsedBody)
 			if err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
+				common.SysError(fmt.Sprintf("[ModelInterceptor] marshal failed: %v", err))
 				c.Writer = originalWriter
 				c.Next()
 				return
@@ -605,7 +894,7 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 
 			newStorage, err := common.CreateBodyStorage(newBody)
 			if err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
+				common.SysError(fmt.Sprintf("[ModelInterceptor] create storage failed: %v", err))
 				c.Writer = originalWriter
 				c.Next()
 				return
@@ -632,158 +921,27 @@ func ModelInterceptorMiddleware() gin.HandlerFunc {
 				common.SysLog(fmt.Sprintf("[ModelInterceptor] Success: status=%d, bodyLen=%d", rec.statusCode, rec.body.Len()))
 				rec.FlushToOriginal()
 				ranker.RecordSuccess(category, newModel)
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求成功", newModel))
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] model %s request success", newModel))
+
+				if captureEnabled.Load() {
+					recordCapture(originalModel, newModel, category, "response", string(newBody), rec.body.String())
+				}
 				return
 			}
 
 			ranker.RecordFailure(category, newModel)
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d, bodyLen=%d)，尝试下一个模型", newModel, rec.Status(), rec.body.Len()))
+			common.SysLog(fmt.Sprintf("[ModelInterceptor] model %s request failed (status: %d, bodyLen=%d), trying next", newModel, rec.Status(), rec.body.Len()))
+
+			if captureEnabled.Load() {
+				recordCapture(originalModel, newModel, category, "error", string(newBody), rec.body.String())
+			}
 
 			lastFailedRec = rec
 			c.Writer = originalWriter
 
 			if len(triedModels) >= ranker.GetCategoryModelCount(category) {
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误 (bodyLen=%d)", category, lastFailedRec.body.Len()))
+				common.SysLog(fmt.Sprintf("[ModelInterceptor] category %s all models tried, returning last error (bodyLen=%d)", category, lastFailedRec.body.Len()))
 				lastFailedRec.FlushToOriginal()
-				return
-			}
-		}
-	}
-}
-
-// ModelInterceptorHandler is deprecated, use ModelInterceptorMiddleware instead
-func ModelInterceptorHandler(handler gin.HandlerFunc) gin.HandlerFunc {
-	config, _ := LoadModelConfig()
-	if !config.Enabled {
-		return handler
-	}
-
-	return func(c *gin.Context) {
-		if !shouldInterceptRequest(c.Request.URL.Path, config) {
-			handler(c)
-			return
-		}
-
-		storage, err := common.GetBodyStorage(c)
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取请求体失败: %v", err))
-			handler(c)
-			return
-		}
-
-		body, err := storage.Bytes()
-		if err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 读取存储数据失败: %v", err))
-			handler(c)
-			return
-		}
-
-		var requestBody map[string]json.RawMessage
-		if err := common.Unmarshal(body, &requestBody); err != nil {
-			common.SysError(fmt.Sprintf("[ModelInterceptor] 解析JSON失败: %v", err))
-			handler(c)
-			return
-		}
-
-		var originalModel string
-		if modelRaw, ok := requestBody["model"]; ok {
-			if err := common.Unmarshal(modelRaw, &originalModel); err != nil {
-				handler(c)
-				return
-			}
-		}
-		if originalModel == "" {
-			handler(c)
-			return
-		}
-
-		category := DetermineCategory(originalModel, config)
-		if category == "" {
-			handler(c)
-			return
-		}
-
-		ranker := GetModelRanker()
-		triedModels := []string{}
-		originalWriter := c.Writer
-
-		for {
-			newModel := ranker.GetNextModel(category, triedModels)
-			if newModel == "" {
-				if len(triedModels) == 0 {
-					common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 无可用模型，透传原始请求", category))
-					c.Writer = originalWriter
-					handler(c)
-					return
-				}
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
-				c.Writer = originalWriter
-				return
-			}
-
-			triedModels = append(triedModels, newModel)
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型替换: %s -> %s (category: %s, 尝试: %d/%d)", originalModel, newModel, category, len(triedModels), ranker.GetCategoryModelCount(category)))
-
-			parsedBody := make(map[string]json.RawMessage)
-			if err := common.Unmarshal(body, &parsedBody); err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 解析原始请求体失败: %v", err))
-				c.Writer = originalWriter
-				handler(c)
-				return
-			}
-
-			parsedBody["model"], _ = common.Marshal(newModel)
-			newBody, err := common.Marshal(parsedBody)
-			if err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 重新序列化失败: %v", err))
-				c.Writer = originalWriter
-				handler(c)
-				return
-			}
-
-			newStorage, err := common.CreateBodyStorage(newBody)
-			if err != nil {
-				common.SysError(fmt.Sprintf("[ModelInterceptor] 创建新存储失败: %v", err))
-				c.Writer = originalWriter
-				handler(c)
-				return
-			}
-
-			c.Request.Body = io.NopCloser(newStorage)
-			c.Request.ContentLength = int64(len(newBody))
-			c.Set(common.KeyBodyStorage, newStorage)
-			c.Set("original_model", originalModel)
-			c.Set("mapped_model", newModel)
-			c.Set("model_category", category)
-
-			if len(triedModels) > 1 {
-				clearChannelContext(c)
-			}
-
-			rec := newResponseRecorder(originalWriter)
-			c.Writer = rec
-
-			handler(c)
-
-			if rec.Status() < 400 {
-				rec.FlushToOriginal()
-				ranker.RecordSuccess(category, newModel)
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求成功", newModel))
-				return
-			}
-
-			ranker.RecordFailure(category, newModel)
-			common.SysLog(fmt.Sprintf("[ModelInterceptor] 模型 %s 请求失败 (status: %d)，尝试下一个模型", newModel, rec.Status()))
-
-			c.Writer = originalWriter
-
-			if len(triedModels) >= ranker.GetCategoryModelCount(category) {
-				common.SysLog(fmt.Sprintf("[ModelInterceptor] 分类 %s 所有模型已尝试完毕，返回最后错误", category))
-				lastRec := newResponseRecorder(originalWriter)
-				lastRec.header = rec.header
-				lastRec.statusCode = rec.statusCode
-				lastRec.body = rec.body
-				lastRec.FlushToOriginal()
 				return
 			}
 		}
