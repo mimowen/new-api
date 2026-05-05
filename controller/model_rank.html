@@ -8,76 +8,97 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
 .container{max-width:1400px;margin:0 auto;padding:20px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding:16px 24px;background:#1e293b;border-radius:12px;border:1px solid #334155}
-.header h1{font-size:22px;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.header-actions{display:flex;gap:12px;align-items:center}
-.mode-switch{display:flex;align-items:center;gap:8px;padding:6px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+
+/* 全局导航栏 - 固定在顶部 */
+.global-nav{position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;margin-bottom:20px;background:#1e293b;border-radius:12px;border:1px solid #334155}
+.global-nav h1{font-size:18px;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.nav-tabs{display:flex;gap:4px}
+.nav-tab{padding:8px 20px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .2s}
+.nav-tab:hover{background:#334155;color:#e2e8f0}
+.nav-tab.active{background:#3b82f6;color:#fff}
+
+/* 模块控制区 - 全局开关 */
+.module-controls{display:flex;gap:12px;align-items:center}
+.mode-switch{padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
 .mode-intercept{background:#065f46;color:#6ee7b7}
 .mode-passthrough{background:#7c2d12;color:#fdba74}
-.nav-links{display:flex;gap:8px}
-.nav-links a{color:#94a3b8;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:13px;transition:all .2s}
-.nav-links a:hover,.nav-links a.active{background:#334155;color:#e2e8f0}
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
-.stat-card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}
-.stat-card .label{font-size:12px;color:#94a3b8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
-.stat-card .value{font-size:28px;font-weight:700}
+
+/* 统计区 */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.stat-card{background:#1e293b;border-radius:12px;padding:16px;border:1px solid #334155}
+.stat-card .label{font-size:11px;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.stat-card .value{font-size:24px;font-weight:700}
 .stat-card .value.green{color:#6ee7b7}
 .stat-card .value.blue{color:#60a5fa}
 .stat-card .value.yellow{color:#fbbf24}
 .stat-card .value.red{color:#f87171}
+
+/* 配置信息区 */
+.config-section{background:#1e293b;border-radius:12px;padding:16px 20px;margin-bottom:16px;border:1px solid #334155}
+.config-section h3{font-size:14px;margin-bottom:10px;color:#e2e8f0}
+.config-row{display:flex;gap:20px;flex-wrap:wrap}
+.config-item{flex:1;min-width:120px}
+.config-item label{display:block;font-size:11px;color:#94a3b8;margin-bottom:3px}
+.config-item span{font-size:13px;color:#e2e8f0;font-weight:500}
+
+/* 操作工具栏 - 模块功能按钮 */
 .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
 .toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
-.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
 .btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
 .btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
 .btn-danger{background:#dc2626;color:#fff}.btn-danger:hover{background:#b91c1c}
 .btn-secondary{background:#334155;color:#e2e8f0}.btn-secondary:hover{background:#475569}
 .btn-warning{background:#d97706;color:#fff}.btn-warning:hover{background:#b45309}
-.btn-sm{padding:4px 10px;font-size:12px}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-icon{padding:6px 10px}
+
+/* 状态信息 */
+.status-bar{font-size:11px;color:#64748b;display:flex;align-items:center;gap:8px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:#6ee7b7;display:inline-block}
+.status-dot.paused{background:#fbbf24}
+
+/* 分类面板 */
 .category-panel{background:#1e293b;border-radius:12px;margin-bottom:16px;border:1px solid #334155;overflow:hidden}
-.category-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#1e293b;border-bottom:1px solid #334155}
-.category-header h3{font-size:15px;color:#e2e8f0}
-.category-header .patterns{font-size:12px;color:#94a3b8;margin-top:4px}
+.category-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#1e293b;border-bottom:1px solid #334155}
+.category-header h3{font-size:14px;color:#e2e8f0}
+.category-header .patterns{font-size:11px;color:#94a3b8;margin-top:3px}
 .category-actions{display:flex;gap:6px}
 table{width:100%;border-collapse:collapse}
-th{text-align:left;padding:10px 16px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #334155;background:#1e293b}
-td{padding:10px 16px;border-bottom:1px solid #1e293b;font-size:13px}
-tr:hover td{background:#1e293b}
-.score-bar{width:100px;height:6px;background:#334155;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px}
+th{text-align:left;padding:8px 14px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #334155;background:#1e293b}
+td{padding:8px 14px;border-bottom:1px solid #1e293b;font-size:12px}
+tr:hover td{background:#334155}
+.score-bar{width:80px;height:5px;background:#334155;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
 .score-bar-fill{height:100%;border-radius:3px;transition:width .3s}
-.score-up{color:#6ee7b7;font-size:11px}.score-down{color:#f87171;font-size:11px}
+
+/* 模态框 */
 .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center;z-index:1000}
-.modal{background:#1e293b;border-radius:12px;padding:24px;width:420px;border:1px solid #334155}
-.modal h3{margin-bottom:16px;font-size:16px}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
-.form-group input,.form-group select{width:100%;padding:8px 12px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px}
+.modal{background:#1e293b;border-radius:12px;padding:20px;width:400px;border:1px solid #334155}
+.modal h3{margin-bottom:14px;font-size:15px}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:11px;color:#94a3b8;margin-bottom:5px}
+.form-group input,.form-group select{width:100%;padding:7px 10px;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:12px}
 .form-group input:focus{outline:none;border-color:#3b82f6}
-.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
-.config-section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:16px;border:1px solid #334155}
-.config-section h3{font-size:15px;margin-bottom:12px}
-.config-row{display:flex;gap:16px;flex-wrap:wrap}
-.config-item{flex:1;min-width:150px}
-.config-item label{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}
-.config-item span{font-size:14px;color:#e2e8f0;font-weight:500}
+.modal-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:16px}
+
 .empty-state{text-align:center;padding:40px;color:#64748b}
-.refresh-info{font-size:12px;color:#64748b}
 </style>
 </head>
 <body>
 <div class="container">
-<div class="header">
-  <h1>Model Interceptor Dashboard</h1>
-  <div class="header-actions">
-    <div class="nav-links">
-      <a href="/api/model_rank" class="active">Rank Monitor</a>
-      <a href="/api/model_rank/capture">Capture</a>
-    </div>
+<!-- 全局导航栏 - 模块切换和全局开关 -->
+<div class="global-nav">
+  <h1>Model Interceptor</h1>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="location.href='/api/model_rank'">Rank Monitor</button>
+    <button class="nav-tab" onclick="location.href='/api/model_rank/capture'">Request Capture</button>
+  </div>
+  <div class="module-controls">
     <button id="modeBtn" class="mode-switch mode-intercept" onclick="toggleMode()">INTERCEPT</button>
-    <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
   </div>
 </div>
 
+<!-- 统计区 -->
 <div class="stats-grid">
   <div class="stat-card"><div class="label">Categories</div><div class="value blue" id="statCategories">0</div></div>
   <div class="stat-card"><div class="label">Total Models</div><div class="value blue" id="statModels">0</div></div>
@@ -85,6 +106,7 @@ tr:hover td{background:#1e293b}
   <div class="stat-card"><div class="label">Failures</div><div class="value red" id="statFailures">0</div></div>
 </div>
 
+<!-- 配置信息区 -->
 <div class="config-section">
   <h3>Score Configuration</h3>
   <div class="config-row">
@@ -95,15 +117,21 @@ tr:hover td{background:#1e293b}
   </div>
 </div>
 
+<!-- 操作工具栏 - 模块功能按钮 -->
 <div class="toolbar">
   <div class="toolbar-left">
     <button class="btn btn-primary" onclick="showAddCategoryModal()">+ Add Category</button>
     <button class="btn btn-success" onclick="saveConfig()">Save Config</button>
     <button class="btn btn-warning" onclick="reloadConfig()">Reload from File</button>
+    <button class="btn btn-secondary btn-icon" onclick="refreshData()" title="手动刷新">⟳</button>
   </div>
-  <span class="refresh-info">Auto-refresh: 5s | Last: <span id="lastRefresh">-</span></span>
+  <div class="status-bar">
+    <span class="status-dot" id="autoRefreshDot"></span>
+    <span>Auto: 3s | Last: <span id="lastRefresh">-</span></span>
+  </div>
 </div>
 
+<!-- 分类列表 -->
 <div id="categoriesContainer"></div>
 </div>
 
@@ -113,7 +141,24 @@ tr:hover td{background:#1e293b}
 let lastData=null;
 let interceptorEnabled=true;
 let captureEnabled=false;
+let autoRefreshTimer=null;
 
+// 初始化
+fetchStatus();
+fetchMode();
+startAutoRefresh();
+
+// 自动刷新 - 3秒间隔
+function startAutoRefresh(){
+  stopAutoRefresh();
+  autoRefreshTimer=setInterval(()=>{fetchStatus()},3000);
+}
+
+function stopAutoRefresh(){
+  if(autoRefreshTimer){clearInterval(autoRefreshTimer);autoRefreshTimer=null}
+}
+
+// 获取状态
 async function fetchStatus(){
   try{
     const r=await fetch('/api/model_rank/status');
@@ -169,6 +214,7 @@ async function toggleMode(){
   }catch(e){console.error(e)}
 }
 
+// 渲染数据（增量更新，不影响页面交互状态）
 function renderData(data){
   let totalModels=0,totalS=0,totalF=0;
   const categories=Object.values(data);
@@ -179,10 +225,12 @@ function renderData(data){
   document.getElementById('statFailures').textContent=totalF;
 
   const container=document.getElementById('categoriesContainer');
-  container.innerHTML='';
+  const oldHtml=container.innerHTML;
+  let newHtml='';
+  
   categories.forEach(cat=>{
     const maxScore=Math.max(...cat.models.map(m=>m.score),1);
-    let html=`<div class="category-panel">
+    newHtml+=`<div class="category-panel">
       <div class="category-header">
         <div><h3>${cat.category}</h3><div class="patterns">Patterns: ${cat.patterns.join(', ')||'none'}</div></div>
         <div class="category-actions">
@@ -195,17 +243,22 @@ function renderData(data){
       const pct=maxScore>0?(m.score/maxScore*100):0;
       const rate=m.successes+m.failures>0?Math.round(m.successes/(m.successes+m.failures)*100):0;
       const barColor=rate>=80?'#6ee7b7':rate>=50?'#fbbf24':'#f87171';
-      html+=`<tr><td>${i+1}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.model}">${m.model}</td>
+      newHtml+=`<tr><td>${i+1}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.model}">${m.model}</td>
         <td><div class="score-bar"><div class="score-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>${Math.round(m.score)}</td>
         <td style="color:#6ee7b7">${m.successes}</td><td style="color:#f87171">${m.failures}</td><td>${rate}%</td>
         <td><button class="btn btn-danger btn-sm" onclick="removeModel('${cat.category}','${m.model}')">Remove</button></td></tr>`;
     });
-    if(cat.models.length===0)html+=`<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px">No models</td></tr>`;
-    html+=`</tbody></table></div>`;
-    container.innerHTML+=html;
+    if(cat.models.length===0)newHtml+=`<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px">No models</td></tr>`;
+    newHtml+=`</tbody></table></div>`;
   });
+
+  // 只在内容真正变化时更新（避免影响交互状态）
+  if(oldHtml!==newHtml){
+    container.innerHTML=newHtml;
+  }
 }
 
+// 模态框
 function showAddCategoryModal(){
   document.getElementById('modalContainer').innerHTML=`<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal"><h3>Add Category</h3>
@@ -226,6 +279,7 @@ function showAddModelModal(category){
 
 function closeModal(){document.getElementById('modalContainer').innerHTML=''}
 
+// 操作函数
 async function addCategory(){
   const name=document.getElementById('addCatName').value.trim();
   const patterns=document.getElementById('addCatPatterns').value.split(',').map(s=>s.trim()).filter(s=>s);
@@ -238,7 +292,7 @@ async function addCategory(){
 }
 
 async function removeCategory(category){
-  if(!confirm('Delete category "'+category+'"? This will remove all models in it.'))return;
+  if(!confirm('Delete category "'+category+'"?'))return;
   try{
     const r=await fetch('/api/model_rank/category/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:category})});
     const j=await r.json();
@@ -270,12 +324,12 @@ async function saveConfig(){
   try{
     const r=await fetch('/api/model_rank/config/save',{method:'POST'});
     const j=await r.json();
-    alert(j.success?'Config saved to file!':'Error: '+j.message);
+    alert(j.success?'Config saved!':'Error: '+j.message);
   }catch(e){alert('Error: '+e)}
 }
 
 async function reloadConfig(){
-  if(!confirm('Reload config from file? This will reset runtime changes.'))return;
+  if(!confirm('Reload config from file?'))return;
   try{
     const r=await fetch('/api/model_rank/config/reload',{method:'POST'});
     const j=await r.json();
@@ -284,8 +338,6 @@ async function reloadConfig(){
 }
 
 function refreshData(){fetchStatus();fetchMode()}
-fetchStatus();fetchMode();
-setInterval(()=>{fetchStatus();fetchMode()},5000);
 </script>
 </body>
 </html>
